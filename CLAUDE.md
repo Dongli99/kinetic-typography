@@ -39,6 +39,8 @@ So a new creative feature is a new plan field that the renderer honors, with a s
 
 Past technology choices and their evidence are in [docs/decisions.md](docs/decisions.md). Read it before changing the aligner, renderer or dependencies.
 
+The agreed direction for the next stage, not yet built, is in [docs/architecture-next.md](docs/architecture-next.md). Read it before changing layout, animation, rendering or the plan format.
+
 ## Principles
 
 - **Restraint.** Add a parameter, flag or layer only when adjusting what exists can't do the job. A bug fix should leave the code simpler. If it adds a workaround, look for the root cause.

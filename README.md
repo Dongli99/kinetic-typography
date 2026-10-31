@@ -1,5 +1,7 @@
 # Kinetic Typography
 
+> **Early version:** tested on one recording so far.
+
 Turn a voiceover into a kinetic typography video. Each word pops onto the screen as it is spoken.
 
 - **Input:** an audio file (`.mp3` or `.wav`) in English, plus an optional script for when the audio is unclear
