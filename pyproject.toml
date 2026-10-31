@@ -1,0 +1,32 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kinetic-typography"
+version = "0.1.0"
+description = "Turn a voiceover into a kinetic typography video."
+readme = "README.md"
+requires-python = ">=3.11"
+license = "MIT"
+dependencies = [
+    "faster-whisper>=1.2",
+    "numpy>=1.26",
+    "onnxruntime>=1.20",
+    "skia-python>=138",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[project.scripts]
+kinetic = "kinetic_typography.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+kinetic_typography = ["fonts/*", "guide.md"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

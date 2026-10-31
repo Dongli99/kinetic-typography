@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python: ["3.11", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install system packages (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg libegl1 libgl1 libfontconfig1
+      - name: Install system packages (macOS)
+        if: runner.os == 'macOS'
+        run: brew install ffmpeg
+      # A real install, not an editable one, so a file missing from the package fails here.
+      - run: pip install ".[dev]"
+      - run: python -m pytest
+      - run: kinetic guide

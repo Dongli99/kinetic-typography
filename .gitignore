@@ -1,0 +1,33 @@
+# Python
+.venv/
+__pycache__/
+*.egg-info/
+build/
+dist/
+.pytest_cache/
+.coverage
+.ruff_cache/
+.mypy_cache/
+
+# Secrets
+.env
+.env.*
+
+# Your media and what the tool makes from it
+/demo/
+*.mp3
+*.wav
+*.m4a
+*.mp4
+*.plan.json
+/*.png
+
+# Downloaded models
+*.onnx
+*.bin
+
+# Machine and editor settings
+.DS_Store
+.claude/
+.idea/
+.vscode/
