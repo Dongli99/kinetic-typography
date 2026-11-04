@@ -1,4 +1,3 @@
-import dataclasses
 import json
 import sys
 from types import SimpleNamespace
@@ -9,10 +8,9 @@ import pytest
 from kinetic_typography import cli
 from kinetic_typography.align import LETTER_IDS, PAD_ID, VOCAB, Alignment, align_to_log_probs, tokenize_script
 from kinetic_typography.cli import main
-from kinetic_typography.model import Phrase, Style, Word
+from kinetic_typography.model import Word
 from kinetic_typography.phrases import group_phrases, merge_numbers
-from kinetic_typography.plan import Plan, PlanError, display_text, load_plan, save_plan
-from kinetic_typography.render import FrameRenderer
+from kinetic_typography.plan import load_plan
 from kinetic_typography.spoken import parse_number_words, spoken_words
 from kinetic_typography.transcribe import Transcript, transcribe
 
@@ -253,99 +251,6 @@ def test_a_repeated_word_gives_way_to_a_new_one():
     assert picks[-1] != "Binance"
 
 
-def test_display_text_keeps_questions_and_contractions():
-    assert display_text("“don’t,”") == "DON'T"
-    assert display_text("why?") == "WHY?"
-    assert display_text("$6.3 billion,") == "$6.3 BILLION"
-
-
-# Today's look, through the scene
-
-
-def plain_scene(text, style=Style(), duration=10.0, phrases=None):
-    return Plan("talk.wav", duration, phrases or group_phrases(timed(text)), dataclasses.asdict(style)).make_scene()
-
-
-@pytest.mark.parametrize("style", [Style(), Style(width=1920, height=1080), Style(width=1080, height=1920)])
-@pytest.mark.parametrize(
-    "text",
-    ["internationalization", "I", "the quick brown fox jumps", "extraordinary misunderstanding"],
-)
-def test_layout_stays_inside_the_margins(text, style):
-    scene = plain_scene(text, style)
-    for word in scene.groups[0].words:
-        for x, y in scene.on_screen(word, word.start + 1.0):
-            assert style.margin - 1 <= x <= style.width - style.margin + 1
-            assert style.margin - 1 <= y <= style.height - style.margin + 1
-
-
-def test_phrases_are_never_on_screen_together():
-    scene = plain_scene("One two. Three four. Five six.", duration=3.0)
-    for t in np.arange(0, 3.0, 0.01):
-        assert sum(any(w.opacity(t) > 0 for w in g.words) for g in scene.groups) <= 1, t
-
-
-def test_word_is_hidden_until_it_is_spoken_then_settles():
-    scene = plain_scene("", phrases=[Phrase(tuple(timed("alpha beta")), 1)], duration=5.0)
-    second = scene.groups[0].words[1]
-    assert second.opacity(second.start - 0.01) == 0
-    for prop in ("opacity", "scale", "x", "y"):
-        assert second.get(prop, second.start + 0.25) == pytest.approx(second.base[prop])
-
-
-def test_rendering_is_repeatable_and_draws_text():
-    renderer = FrameRenderer(plain_scene("alpha beta", duration=5.0))
-    empty = renderer.draw(0.0).copy()
-    first = renderer.draw(0.3).copy()
-    second = renderer.draw(0.3).copy()
-    assert first.shape == (1080, 1080, 4)
-    assert np.array_equal(first, second)
-    assert not np.array_equal(first, empty)
-
-
-# Plan file
-
-
-def sample_plan(tmp_path):
-    audio = tmp_path / "talk.wav"
-    audio.write_bytes(b"")
-    return Plan(str(audio), 5.0, [Phrase((Word("alpha", 1.0, 1.5), Word("beta,", 1.5, 2.0)), 1)], {"fps": 24})
-
-
-def test_plan_survives_a_round_trip_with_audio_relative_to_it(tmp_path):
-    plan = sample_plan(tmp_path)
-    path = tmp_path / "talk.plan.json"
-    save_plan(plan, str(path))
-    assert json.loads(path.read_text())["audio"] == "talk.wav"
-    loaded = load_plan(str(path))
-    assert loaded.phrases == plan.phrases
-    assert loaded.make_style().fps == 24
-    assert loaded.audio == str(tmp_path / "talk.wav")
-
-
-@pytest.mark.parametrize(
-    "change, field",
-    [
-        (lambda d: d.update(version=99), "version"),
-        (lambda d: d.update(duration=-1), "duration"),
-        (lambda d: d["style"].update(colour=1), "style.colour"),
-        (lambda d: d["phrases"][0].update(emphasis=9), "phrases[0].emphasis"),
-        (lambda d: d["phrases"][0]["words"][1].update(start=9), "phrases[0].words[1]"),
-        (lambda d: d["phrases"][0]["words"][0].update(text=" "), "phrases[0].words[0].text"),
-        (lambda d: d.update(phrases=[]), "phrases"),
-    ],
-)
-def test_a_bad_plan_names_the_field_to_fix(tmp_path, change, field):
-    path = tmp_path / "plan.json"
-    save_plan(sample_plan(tmp_path), str(path))
-    data = json.loads(path.read_text())
-    change(data)
-    path.write_text(json.dumps(data))
-    with pytest.raises(PlanError) as error:
-        load_plan(str(path))
-    assert field in str(error.value)
-
-
 # Command line
 
 
@@ -392,8 +297,7 @@ def test_a_script_replaces_the_recognizer(plan_command, tmp_path):
     assert code == 0
     assert result["words_from"] == "script"
     assert calls == []
-    words = [word.text for phrase in load_plan(str(tmp_path / "out.plan.json")).phrases for word in phrase.words]
-    assert words == ["Right", "words."]
+    assert [word.text for word in load_plan(str(tmp_path / "out.plan.json")).words] == ["Right", "words."]
 
 
 def test_audio_with_no_speech_is_an_error_not_an_empty_video(plan_command):
@@ -417,23 +321,3 @@ def test_json_mode_reports_errors_as_one_object_on_stdout(capsys):
     result = json.loads(capsys.readouterr().out)
     assert result["ok"] is False
     assert "missing.json" in result["error"]
-
-
-def test_frame_writes_a_png_from_an_edited_plan(tmp_path, capsys):
-    path = tmp_path / "plan.json"
-    save_plan(sample_plan(tmp_path), str(path))
-    image = tmp_path / "frame.png"
-    assert main(["frame", "--plan", str(path), "--at", "1.8", "--out", str(image), "--json"]) == 0
-    assert json.loads(capsys.readouterr().out)["ok"] is True
-    assert image.read_bytes().startswith(b"\x89PNG")
-
-
-def test_guide_is_packaged_and_covers_every_style_setting(capsys):
-    assert main(["guide"]) == 0
-    guide = capsys.readouterr().out
-    from dataclasses import fields
-
-    for setting in fields(Style):
-        assert f"`{setting.name}`" in guide, f"{setting.name} is missing from the guide"
-    for command in ("make", "plan", "render", "frame"):
-        assert f"kinetic {command}" in guide, f"kinetic {command} is missing from the guide"

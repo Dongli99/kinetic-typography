@@ -104,7 +104,7 @@ def test_shared_every_effect_is_documented_and_works_with_no_parameters(slot):
     "spec, message",
     [
         ("spin", "unknown retire effect 'spin'. Known: "),
-        ({"type": "fade", "durr": 1}, "retire.durr: fade has no such parameter. Parameters: after, dur, hold"),
+        ({"type": "fade", "durr": 1}, "retire.durr: fade has no such parameter. Known: after, dur, hold"),
         ({"type": "fade", "dur": "1s"}, "retire.dur: expected a number"),
         ({"type": "fade", "hold": True}, "retire.hold: expected a number or null"),
         ({"dur": 1}, "expected an effect name"),

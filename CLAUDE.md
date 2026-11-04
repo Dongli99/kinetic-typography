@@ -31,12 +31,12 @@ So a new creative feature is a new plan field that the renderer honors, with a s
 | `align.py` | Forced alignment of the words to the audio |
 | `spoken.py` | How numbers sound, and how spoken numbers read |
 | `phrases.py` | First draft of phrase breaks and emphasis |
-| `plan.py` | Plan file format and validation, and the groups and effects it chooses |
+| `plan.py` | Plan file format, its markup and validation. Every mistake is a `PlanError` naming the field |
 | `scene.py` | The tree of world, groups and words, whose properties change over time through keys |
-| `effects.py` | The registry of `place`, `arrive`, `retire` and `camera` effects, which write those keys |
+| `effects.py` | The registry of `place`, `arrive`, `retire` and `camera` effects, which write those keys. It validates choices and hints, and writes the guide's effect reference |
 | `build.py` | Groups plus a choice per slot, made into a scene |
 | `render.py` | Skia frames, piped to ffmpeg. It walks the tree and knows no effect by name |
-| `guide.md` | What a user's agent reads, via `kinetic guide` |
+| `guide.md` | What a user's agent reads, via `kinetic guide`, followed by the generated effect reference |
 
 Past technology choices and their evidence are in [docs/decisions.md](docs/decisions.md). Read it before changing the aligner, renderer or dependencies.
 
@@ -57,7 +57,8 @@ The agreed direction for the next stage, partly built, is in [docs/architecture-
 | `tools/git-hooks/pre-commit` | Every commit | Secrets (gitleaks) and failing tests |
 | GitHub Actions | Every push and PR | Failed installs and tests on Linux and macOS |
 | `tools/eval_alignment.py` | By hand, for timing changes | Timing regressions on a real recording |
-| `test_guide_is_packaged_...` | With the tests | Guide missing a command or style setting |
+| `test_guide_is_packaged_...` | With the tests | Guide missing a command, plan field, look setting, effect, parameter or hint |
+| `test_a_mistake_is_an_error_...` | With the tests | A plan mistake that's skipped instead of reported |
 | `test_shared_...` in `test_effects.py` | With the tests, on every registered effect | An effect without docs or defaults, words shown early, moving while spoken or never settling, groups that never leave, a camera losing the words |
 
 ## When changing things

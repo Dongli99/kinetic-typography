@@ -1,6 +1,6 @@
 # Next architecture
 
-The agreed direction for the next stage. A prototype has passed (see below), and step 1 of the [Stage 1 plan](#stage-1-plan) is in the package. All sizes and savings here are estimates.
+The agreed direction for the next stage. A prototype has passed (see below), and steps 1 and 2 of the [Stage 1 plan](#stage-1-plan) are in the package. All sizes and savings here are estimates.
 
 ## Goal
 
@@ -165,10 +165,10 @@ Agreed 2026-11-03. It moves the prototype's design into the package, so an agent
 Build order:
 
 1. **Core model.** The tree, changing properties, the four slots and the effect registry replace `layout.py` and `animate.py`. Every effect passes the shared tests. *Done 2026-11-03.* Version 1 plans run through it as `fit`, `pop`, `fade` and `still`, and look as before, except that line boxes now fit the ink instead of the cap height. The prototype's hand direction rebuilt through it with 0 overlaps.
-2. **Plan format v2.** It adds sections, groups and lines, and per word an emphasis level (hero, weight or tone) and an optional size. It also adds placement fields and slot choices. `"emphasis": {"source": "meaning"}` is the default, with `"voice"` or `"both"` as opt-ins. `PLAN_VERSION` goes to 2, and version 1 plans are refused with a message rather than converted. Markup that doesn't apply, a word that doesn't match the recording, or an unknown effect is an error.
+2. **Plan format v2.** It adds sections, groups and lines, and per word an emphasis level (hero, weight or tone) and an optional size. It also adds placement fields and slot choices. `"emphasis": {"source": "meaning"}` is the default, with `"voice"` or `"both"` as opt-ins. `PLAN_VERSION` goes to 2, and version 1 plans are refused with a message rather than converted. Markup that doesn't apply, a word that doesn't match the recording, or an unknown effect is an error. *Done 2026-11-03,* with two changes. The bundled serif came forward from step 5, since bold and italic levels can't be drawn without it. `"voice"` and `"both"` are refused until step 8 builds them, so the field never promises what the tool can't do. The prototype's hand direction, translated, loads with no errors, renders with 0 overlaps and looks like the prototype.
 3. **`kinetic check`**, with output a machine can read. It reports overlaps, clipping at the frame edge, words too brief to read, and the styles actually applied.
 4. **Previews.** Contact sheets and short low-resolution clips, since full renders with motion blur are slow.
-5. **Rendering.** The moving camera with motion blur and a paper look. The presets are `gap` first and `plain` for today's look. The font is a bundled open-licensed serif, such as EB Garamond, because the prototype's font ships only with macOS. Record the choice in `decisions.md`.
+5. **Rendering.** The moving camera with motion blur and a paper look. The presets are `gap` first and `plain` for today's look. Render frames in parallel, since each depends only on the plan and its time.
 6. **Automatic first draft.** `kinetic make --audio` still works with no agent: groups from sentences and pauses, placement by a rule that uses the overlap check as a search, and emphasis from improved rules. Those rules mark less, and favor numbers and contrast words. The tool reports that it fell back to rules.
 7. **Guide.** `guide.md` is rewritten with worked examples, and the README changes in the same commit.
 8. **Optional voice hints.** `kinetic analyze` writes each word's measured stress into the plan as hints. It's last, because it measured weak.

@@ -9,9 +9,10 @@ from importlib.resources import files
 from pathlib import Path
 
 from . import __version__
+from .effects import describe
 from .align import align_script, decode_audio, tokenize_script
 from .phrases import group_phrases
-from .plan import Plan, load_plan, save_plan
+from .plan import Plan, draft_plan, load_plan, save_plan
 from .render import render_video, save_frame
 from .transcribe import transcribe
 
@@ -55,7 +56,8 @@ def main(argv: list[str] | None = None) -> int:
 
     args = parser.parse_args(argv)
     if args.command == "guide":
-        print((files("kinetic_typography") / "guide.md").read_text(encoding="utf-8"))
+        print((files("kinetic_typography") / "guide.md").read_text(encoding="utf-8").rstrip() + "\n")
+        print(describe())
         return 0
 
     try:
@@ -87,7 +89,8 @@ def run_plan(args: argparse.Namespace) -> dict:
 def run_render(args: argparse.Namespace) -> dict:
     plan = _load_checked_plan(args.plan)
     _render(plan, args.out)
-    return {"video": args.out, "duration": plan.duration, "phrases": len(plan.phrases)}
+    groups = sum(len(section["groups"]) for section in plan.sections)
+    return {"video": args.out, "duration": plan.duration, "groups": groups}
 
 
 def run_frame(args: argparse.Namespace) -> dict:
@@ -117,11 +120,11 @@ def _build_plan(audio: str, script: str | None) -> tuple[Plan, dict]:
     doubtful = unsure + alignment.doubtful
     if doubtful:
         print(f"Check these words, which the audio barely supports: {', '.join(doubtful)}", file=sys.stderr)
-    plan = Plan(audio, alignment.duration, group_phrases(alignment.words))
+    plan = draft_plan(audio, alignment.duration, group_phrases(alignment.words))
     return plan, {
         "words_from": "script" if script else "audio",
         "duration": round(plan.duration, 3),
-        "phrases": len(plan.phrases),
+        "groups": len(plan.sections[0]["groups"]),
         "confidence": round(alignment.confidence, 2),
         "doubtful": doubtful,
     }

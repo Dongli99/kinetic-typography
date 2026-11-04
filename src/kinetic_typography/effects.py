@@ -10,21 +10,35 @@ docstring are its documentation, and `resolve` validates a choice against them.
 """
 
 import inspect
+import json
 from itertools import combinations
 
 from .scene import Camera, Group, Word, rotate
 
 SLOTS = {"place": 2, "arrive": 2, "retire": 2, "camera": 3}  # arguments before the parameters
 EFFECTS: dict[str, dict] = {slot: {} for slot in SLOTS}
+HINTS: dict[str, dict] = {slot: {} for slot in SLOTS}  # what each group may tell the effect
+SLOT_DOCS = {
+    "place": "Where every group rests. One choice for the whole video.",
+    "arrive": "How each word comes in.",
+    "retire": (
+        "How each group leaves. It starts leaving `after` groups later, at the next section, or `hold` seconds "
+        "after its last word, whichever is first. With none of these, it stays to the end."
+    ),
+    "camera": "Where the view goes. One choice for the whole video.",
+}
 
 
 class EffectError(ValueError):
     """A choice of effect that can't be used. The message names what to fix."""
 
 
-def effect(slot: str, name: str):
+def effect(slot: str, name: str, hints: dict | None = None):
+    """Register an effect. Hints map each per-group hint to its default, or to a tuple of choices."""
+
     def register(fn):
         EFFECTS[slot][name] = fn
+        HINTS[slot][name] = hints or {}
         return fn
 
     return register
@@ -48,19 +62,67 @@ def resolve(slot: str, spec: str | dict, where: str = "") -> tuple:
         raise EffectError(f"{where}: expected an effect name or {{\"type\": name, ...}}, got {spec!r}")
     if name not in EFFECTS[slot]:
         raise EffectError(f"{where}: unknown {slot} effect {name!r}. Known: {', '.join(sorted(EFFECTS[slot]))}")
-    known = parameters(slot, name)
-    for key, value in params.items():
+    _check(params, parameters(slot, name), f"{name} has no such parameter", where)
+    return EFFECTS[slot][name], params
+
+
+def check_hints(slot: str, name: str, hints: dict, where: str) -> None:
+    """Hints a group gives the chosen effect, or an error naming the fix."""
+    if not isinstance(hints, dict):
+        raise EffectError(f"{where}: expected an object, got {hints!r}")
+    if hints and not HINTS[slot][name]:
+        raise EffectError(f"{where}: the {slot} effect {name} takes no hints, so these would do nothing")
+    _check(hints, HINTS[slot][name], f"{name} takes no such hint", where)
+
+
+def _check(values: dict, known: dict, unknown: str, where: str) -> None:
+    for key, value in values.items():
         if key not in known:
-            raise EffectError(f"{where}.{key}: {name} has no such parameter. Parameters: {', '.join(known) or 'none'}")
+            raise EffectError(f"{where}.{key}: {unknown}. Known: {', '.join(known) or 'none'}")
         default = known[key]
         number = isinstance(value, (int, float)) and not isinstance(value, bool)
+        if isinstance(default, tuple) and value not in default:
+            raise EffectError(f"{where}.{key}: expected one of {', '.join(default)}, got {value!r}")
         if isinstance(default, bool) and not isinstance(value, bool):
             raise EffectError(f"{where}.{key}: expected true or false, got {value!r}")
-        if isinstance(default, (int, float)) and not isinstance(default, bool) and not number:
+        if type(default) is int and (type(value) is not int or value < 1):
+            raise EffectError(f"{where}.{key}: expected a whole number from 1, got {value!r}")
+        if type(default) is float and not number:
             raise EffectError(f"{where}.{key}: expected a number, got {value!r}")
         if default is None and value is not None and not number:
             raise EffectError(f"{where}.{key}: expected a number or null, got {value!r}")
-    return EFFECTS[slot][name], params
+
+
+def describe() -> str:
+    """The effect reference, in Markdown, from each effect's docstring, parameters and hints."""
+    out = [
+        "## Effects",
+        "",
+        "Generated from the tool itself, so it's always complete. Defaults are in brackets, and for a choice "
+        "the first is the default.",
+        "",
+    ]
+    for slot in SLOTS:
+        out += [f"### {slot}", "", SLOT_DOCS[slot], ""]
+        for name, fn in sorted(EFFECTS[slot].items()):
+            doc = " ".join(inspect.getdoc(fn).split())
+            params = ", ".join(f"`{key}` {_show(value)}" for key, value in parameters(slot, name).items())
+            out.append(f"- **`{name}`**: {doc}")
+            if params:
+                out.append(f"  Parameters: {params}.")
+            hints = HINTS[slot][name]
+            if hints:
+                field = "at" if slot == "place" else slot
+                shown = ", ".join(f"`{key}` {_show(value)}" for key, value in hints.items())
+                out.append(f"  Hints in a group's `{field}`: {shown}.")
+        out.append("")
+    return "\n".join(out)
+
+
+def _show(default) -> str:
+    if isinstance(default, tuple):
+        return "(" + " or ".join(default) + ")"
+    return f"({json.dumps(default)})"
 
 
 # ------------------------------------------------------------------- place
@@ -68,11 +130,11 @@ def resolve(slot: str, spec: str | dict, where: str = "") -> tuple:
 
 @effect("place", "fit")
 def place_fit(ctx, groups: list[Group], margin=90.0, max_size=190.0):
-    """One group at a time in the middle, broken into lines and sized to fill the frame."""
+    """One group at a time in the middle, sized to fill the frame. It breaks lines itself unless they're given."""
     width, height = ctx.size[0] - 2 * margin, ctx.size[1] - 2 * margin
     for g in groups:
         best = None
-        for lines in _partitions(len(g.words)):
+        for lines in [g.spec.lines] if g.spec.lines else _partitions(len(g.words)):
             w, h = g.line_box(lines)
             size = min(max_size, width / w, height / h)
             score = size * (1 - 0.07 * (len(lines) - 1))  # prefer fewer lines
@@ -90,12 +152,16 @@ def _partitions(count: int):
             yield tuple(edges[i + 1] - edges[i] for i in range(line_count))
 
 
-@effect("place", "canvas")
-def place_canvas(ctx, groups: list[Group], gap=36.0):
-    """Each group attaches to a side of the one before, optionally turned.
+SIDES = ("below", "above", "right", "left")
+ALIGNS = ("left", "center", "right")
 
-    Hints in a group's `at`: side (below, above, right, left), turn in degrees, gap,
-    align (left, center, right), dx, dy and scale, all in the previous group's frame.
+
+@effect("place", "canvas", hints={"side": SIDES, "turn": 0.0, "gap": 0.0, "align": ALIGNS, "dx": 0.0, "dy": 0.0, "scale": 1.0})
+def place_canvas(ctx, groups: list[Group], gap=36.0):
+    """Each group attaches to a side of the one before, optionally turned and scaled.
+
+    Its `at` hints are in the previous group's frame: side, turn in degrees, gap in pixels,
+    align (of its edge with the previous group's), dx and dy offsets in pixels, and scale.
     """
     prev = None
     for g in groups:
@@ -123,7 +189,7 @@ def place_canvas(ctx, groups: list[Group], gap=36.0):
             level = turn % 360 == 0
             ay = -ph / 2 + (prev.last_baseline * ps - g.first_baseline * s if level else 0)
         else:
-            raise EffectError(f"at.side: expected below, above, right or left, got {side!r}")
+            raise EffectError(f"at.side: expected one of {', '.join(SIDES)}, got {side!r}")
         wx, wy = rotate(ax - left + at.get("dx", 0), ay - top + at.get("dy", 0), prev.base["rot"])
         g.base.update(x=prev.base["x"] + wx, y=prev.base["y"] + wy, rot=prev.base["rot"] + turn)
         prev = g
@@ -228,12 +294,12 @@ def camera_still(ctx, cam: Camera, groups: list[Group]):
     """Stay centered on the origin at actual size."""
 
 
-@effect("camera", "follow")
+@effect("camera", "follow", hints={"with": 1, "zoom": 1.0, "tilt": 0.0, "cut": False})
 def camera_follow(ctx, cam: Camera, groups: list[Group], fill=0.6, max_zoom=1.7, travel=0.6, drift=0.05):
     """Frame each group as it starts, turned so its lines read level.
 
-    Hints in a group's `camera`: with (how many groups to frame together), zoom, tilt in degrees,
-    and cut (jump instead of travelling).
+    Its `camera` hints: with (how many groups, counting back from this one, to frame together),
+    zoom (relative to the framing), tilt in degrees, and cut (jump instead of travelling).
     """
     width, height = ctx.size
     prev, last_t = None, 0.0

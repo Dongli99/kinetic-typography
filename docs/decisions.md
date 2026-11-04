@@ -106,3 +106,16 @@ A parser such as spaCy would add a large dependency to improve a guess that an a
 **Chosen:** Python 3.11 or newer, installed with pipx from git. Python holds the aligner, renderer bindings and CLI in one language, and needs no build step.
 
 **Revisit if:** render speed becomes a limit. The per-frame code is small and could move to a compiled language without touching the plan format.
+
+## Fonts: Archivo Black and EB Garamond, bundled
+
+**Chosen:** two families ship with the package, both under the SIL Open Font License, so videos look the same on every machine. Archivo Black is the heavy sans for today's look. [EB Garamond](https://github.com/octaviopardo/EBGaramond12), from the Google Fonts repository, is the serif, as variable upright and italic files with weights from 400 to 800, 2026-11-03.
+
+**Why a serif with bold and italic:** emphasis has three levels, and two of them are drawn as weight and slant. Archivo Black has a single weight, so it can only show emphasis by size and color. The prototype used Hoefler Text, which ships only with macOS.
+
+**Evidence:** the prototype's hand direction, set in EB Garamond, kept its look on a contact sheet. No other serif was tried, so this choice isn't ranked against alternatives.
+
+**A trap:** in skia-python, variation arguments built inline as temporaries are quietly ignored, and bold comes out at the regular weight. Building them step by step works. `test_bold_and_italic_are_drawn_differently` fails if bold comes out at the regular width.
+
+**Revisit if:** a reference video needs a heavier black weight than 800, or languages beyond what these fonts cover.
+

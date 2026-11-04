@@ -6,11 +6,18 @@ World space has its origin where the camera starts, and y points down.
 
 import math
 from dataclasses import dataclass, field
+from functools import cache
 from importlib.resources import files
 
 import skia
 
-FONT_PATH = str(files("kinetic_typography") / "fonts" / "ArchivoBlack-Regular.ttf")
+FONT_DIR = files("kinetic_typography") / "fonts"
+# Bundled families: their upright and italic files and, for a variable font, the weight to use for bold.
+FAMILIES = {
+    "Archivo Black": {"upright": "ArchivoBlack-Regular.ttf"},
+    "EB Garamond": {"upright": "EBGaramond-wght.ttf", "italic": "EBGaramond-Italic-wght.ttf", "bold": 800},
+}
+WEIGHT_AXIS = int.from_bytes(b"wght", "big")
 _REFERENCE_SIZE = 100.0
 
 EASES = {
@@ -84,34 +91,67 @@ class Node:
 
 
 class Fonts:
-    """One typeface at any size, with measurements that scale with the size."""
+    """One family at any size, upright or italic, regular or bold, with measurements that scale with size."""
 
-    def __init__(self, path: str = FONT_PATH):
-        self.typeface = skia.Typeface.MakeFromFile(path)
-        if self.typeface is None:
-            raise RuntimeError(f"Could not load the font at {path}")
-        self._fonts: dict[float, skia.Font] = {}
-        self._measured: dict[str, tuple[float, float, float]] = {}
+    def __init__(self, family: str):
+        if family not in FAMILIES:
+            raise ValueError(f"Unknown font {family!r}. Bundled fonts: {', '.join(FAMILIES)}")
+        self.family = family
+        self._files = FAMILIES[family]
+        self._faces: dict[tuple[bool, bool], skia.Typeface] = {}
+        self._fonts: dict[tuple[float, bool, bool], skia.Font] = {}
+        self._measured: dict[tuple[str, bool, bool], tuple[float, float, float]] = {}
         self.space = self.font(_REFERENCE_SIZE).measureText(" ") / _REFERENCE_SIZE
 
-    def font(self, size: float) -> skia.Font:
-        font = self._fonts.get(size)
+    def has(self, bold: bool = False, italic: bool = False) -> bool:
+        return (not bold or "bold" in self._files) and (not italic or "italic" in self._files)
+
+    def face(self, bold: bool = False, italic: bool = False) -> skia.Typeface:
+        if not self.has(bold, italic):
+            style = " ".join(name for name, on in (("bold", bold), ("italic", italic)) if on)
+            raise ValueError(f"{self.family} has no {style} style")
+        key = (bold, italic)
+        if key not in self._faces:
+            path = str(FONT_DIR / self._files["italic" if italic else "upright"])
+            face = skia.Typeface.MakeFromFile(path)
+            if face is None:
+                raise RuntimeError(f"Could not load the font at {path}")
+            if "bold" in self._files:  # a variable font: set its weight
+                # Name each step: built inline as temporaries, the weight is quietly ignored.
+                position = skia.FontArguments.VariationPosition
+                coordinates = position.Coordinates([position.Coordinate(WEIGHT_AXIS, self._files["bold"] if bold else 400)])
+                variation = position(coordinates)
+                arguments = skia.FontArguments()
+                arguments.setVariationDesignPosition(variation)
+                face = face.makeClone(arguments)
+            self._faces[key] = face
+        return self._faces[key]
+
+    def font(self, size: float, bold: bool = False, italic: bool = False) -> skia.Font:
+        key = (size, bold, italic)
+        font = self._fonts.get(key)
         if font is None:
-            font = skia.Font(self.typeface, size)
+            font = skia.Font(self.face(bold, italic), size)
             font.setSubpixel(True)
             font.setHinting(skia.FontHinting.kNone)
             font.setEdging(skia.Font.Edging.kAntiAlias)
-            self._fonts[size] = font
+            self._fonts[key] = font
         return font
 
-    def measure(self, text: str) -> tuple[float, float, float]:
+    def measure(self, text: str, bold: bool = False, italic: bool = False) -> tuple[float, float, float]:
         """Advance width, ink above the baseline and ink below it, at size 1."""
-        if text not in self._measured:
+        key = (text, bold, italic)
+        if key not in self._measured:
             ink = skia.Rect()
-            advance = self.font(_REFERENCE_SIZE).measureText(text, skia.TextEncoding.kUTF8, ink)
-            self._measured[text] = (advance / _REFERENCE_SIZE, max(0.0, -ink.top() / _REFERENCE_SIZE),
-                                    max(0.0, ink.bottom() / _REFERENCE_SIZE))  # fmt: skip
-        return self._measured[text]
+            advance = self.font(_REFERENCE_SIZE, bold, italic).measureText(text, skia.TextEncoding.kUTF8, ink)
+            self._measured[key] = (advance / _REFERENCE_SIZE, max(0.0, -ink.top() / _REFERENCE_SIZE),
+                                   max(0.0, ink.bottom() / _REFERENCE_SIZE))  # fmt: skip
+        return self._measured[key]
+
+
+@cache
+def fonts_for(family: str) -> Fonts:
+    return Fonts(family)
 
 
 @dataclass(frozen=True)
@@ -124,7 +164,11 @@ class Look:
     size: float = 64.0  # text size for placements that don't choose one
     line_gap: float = 0.28  # space between one line's ink and the next, relative to text size
     background: tuple[int, int, int] = (17, 17, 17)
-    fonts: Fonts = field(default_factory=Fonts, compare=False, repr=False)
+    font: str = "Archivo Black"
+
+    @property
+    def fonts(self) -> Fonts:
+        return fonts_for(self.font)
 
 
 @dataclass(frozen=True)
@@ -136,6 +180,8 @@ class WordSpec:
     end: float
     size: float = 1.0  # relative to its group's text size
     color: tuple[int, int, int] = (245, 245, 240)
+    bold: bool = False
+    italic: bool = False
 
 
 @dataclass(frozen=True)
@@ -143,8 +189,7 @@ class GroupSpec:
     """Words shown together. The hints are read by whichever effects use them."""
 
     words: tuple[WordSpec, ...]
-    lines: tuple[int, ...] | None = None  # words per line; default one line
-    size: float = 1.0  # relative to the look's text size
+    lines: tuple[int, ...] | None = None  # words per line; None lets the place effect choose
     align: str = "left"  # of its lines: left, center or right
     section: bool = False  # starts a new section
     at: dict = field(default_factory=dict)  # hints for the place effect
@@ -180,7 +225,7 @@ class Group(Node):
         self.words = [Word(self, word) for word in spec.words]
         self.start, self.end = spec.words[0].start, spec.words[-1].end
         self.w = self.h = self.first_baseline = self.last_baseline = 0.0
-        self.set_lines(spec.lines or (len(self.words),), look.size * spec.size)
+        self.set_lines(spec.lines or (len(self.words),), look.size)
 
     def line_box(self, lines: tuple[int, ...]) -> tuple[float, float]:
         """Width and height of these lines at size 1, without setting them."""
@@ -202,9 +247,9 @@ class Group(Node):
             first = baseline if first is None else first
             x = {"left": 0.0, "center": (self.w - row_width * size) / 2, "right": self.w - row_width * size}[self.spec.align]
             for word in self.words[index : index + count]:
-                advance, top, bottom = self.look.fonts.measure(word.text)
+                advance, top, bottom = self.look.fonts.measure(word.text, word.spec.bold, word.spec.italic)
                 word_size = size * word.spec.size
-                word.font = self.look.fonts.font(word_size)
+                word.font = self.look.fonts.font(word_size, word.spec.bold, word.spec.italic)
                 word.width, word.top, word.bottom = advance * word_size, top * word_size, bottom * word_size
                 word.base.update(x=x + word.width / 2 - self.w / 2, y=baseline - self.h / 2)
                 x += word.width + self.look.fonts.space * size
@@ -216,7 +261,8 @@ class Group(Node):
         """Each line's width, ink above and ink below, at size 1."""
         rows, index = [], 0
         for count in lines:
-            measured = [(self.look.fonts.measure(w.text), w.spec.size) for w in self.words[index : index + count]]
+            words = self.words[index : index + count]
+            measured = [(self.look.fonts.measure(w.text, w.spec.bold, w.spec.italic), w.spec.size) for w in words]
             width = sum(m[0] * s for m, s in measured) + self.look.fonts.space * (count - 1)
             rows.append((width, max(m[1] * s for m, s in measured), max(m[2] * s for m, s in measured)))
             index += count

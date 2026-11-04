@@ -39,7 +39,7 @@ kinetic make --audio talk.mp3 --script talk.txt --out talk.mp4
 
 ### Adjust the result
 
-To change the emphasis, phrase breaks, wording or colors, make a plan file first:
+To change the emphasis, the groups of words, the font or the motion, make a plan file first. You mark emphasis in each group's text, like `**hero**`, `*weight*` and `_tone_`:
 
 ```bash
 kinetic plan --audio talk.mp3 --out talk.plan.json
@@ -63,7 +63,7 @@ With a script, the video shows its words, so spelling and names stay as you wrot
 ## How it works
 
 ```
-audio ─▶ words (or your script) ─▶ timing ─▶ phrases ─▶ plan file ─▶ layout ─▶ motion ─▶ MP4
+audio ─▶ words (or your script) ─▶ timing ─▶ groups ─▶ plan file ─▶ effects ─▶ MP4
 ```
 
 Whisper works out the words, unless you give a script. Timing then uses forced alignment: because the words are known, a second speech model only has to find when each letter sounds. Why each technology was chosen is in [docs/decisions.md](docs/decisions.md).
@@ -81,11 +81,12 @@ Contributing, by hand or with an agent? Start with [CLAUDE.md](CLAUDE.md).
 
 ## Roadmap
 
-- Wider formats as a supported feature (`width` and `height` already work in the plan's `style`)
+- Checks that words stay in the frame and don't land on each other
+- Contact sheets and quick previews
+- Motion blur, a paper look and presets
+- A better first draft without an agent
 - Custom fonts
-- More ways to compose words
-- Tunable effects and camera moves
 
 ## License
 
-The code is under the [MIT License](LICENSE). The bundled Archivo Black font is under the [SIL Open Font License](src/kinetic_typography/fonts/OFL.txt). The speech models are downloaded separately: [wav2vec2-base-960h](https://huggingface.co/facebook/wav2vec2-base-960h) is under Apache-2.0, and [faster-whisper-small.en](https://huggingface.co/Systran/faster-whisper-small.en) is under MIT.
+The code is under the [MIT License](LICENSE). The bundled fonts, [Archivo Black](src/kinetic_typography/fonts/ArchivoBlack-OFL.txt) and [EB Garamond](src/kinetic_typography/fonts/EBGaramond-OFL.txt), are under the SIL Open Font License. The speech models are downloaded separately: [wav2vec2-base-960h](https://huggingface.co/facebook/wav2vec2-base-960h) is under Apache-2.0, and [faster-whisper-small.en](https://huggingface.co/Systran/faster-whisper-small.en) is under MIT.
