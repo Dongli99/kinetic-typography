@@ -1,4 +1,4 @@
-"""Data passed between the pipeline stages: words -> phrases -> scenes -> frames."""
+"""Data passed between the pipeline stages: words -> phrases -> plan."""
 
 from dataclasses import dataclass
 
@@ -16,37 +16,6 @@ class Word:
 class Phrase:
     words: tuple[Word, ...]
     emphasis: int | None = None  # index into words
-
-
-@dataclass(frozen=True)
-class PlacedWord:
-    """A word positioned in world space, where (0, 0) is the canvas center."""
-
-    text: str
-    x: float  # left edge
-    y: float  # baseline
-    width: float
-    size: float
-    start: float
-    emphasized: bool
-
-
-@dataclass(frozen=True)
-class Scene:
-    """One phrase on screen, from just before its first word until start of the next."""
-
-    words: tuple[PlacedWord, ...]
-    start: float
-    end: float
-
-
-@dataclass(frozen=True)
-class Camera:
-    """A view onto world space. Static in this version."""
-
-    x: float = 0.0
-    y: float = 0.0
-    zoom: float = 1.0
 
 
 @dataclass(frozen=True)

@@ -10,7 +10,6 @@ from pathlib import Path
 
 from . import __version__
 from .align import align_script, decode_audio, tokenize_script
-from .layout import build_scenes
 from .phrases import group_phrases
 from .plan import Plan, load_plan, save_plan
 from .render import render_video, save_frame
@@ -93,8 +92,7 @@ def run_render(args: argparse.Namespace) -> dict:
 
 def run_frame(args: argparse.Namespace) -> dict:
     plan = load_plan(args.plan)
-    style = plan.make_style()
-    save_frame(build_scenes(plan.phrases, plan.duration, style), args.at, args.out, style)
+    save_frame(plan.make_scene(), args.at, args.out)
     return {"frame": args.out, "at": args.at}
 
 
@@ -139,14 +137,13 @@ def _load_checked_plan(path: str) -> Plan:
 
 def _render(plan: Plan, out: str) -> None:
     _require_ffmpeg()
-    style = plan.make_style()
-    scenes = build_scenes(plan.phrases, plan.duration, style)
+    scene = plan.make_scene()
 
     def show_progress(done: int, total: int) -> None:
-        if done == total or done % style.fps == 0:
+        if done == total or done % scene.look.fps == 0:
             print(f"\rRendering {done}/{total} frames", end="", file=sys.stderr, flush=True)
 
-    render_video(scenes, plan.audio, out, plan.duration, style, show_progress)
+    render_video(scene, plan.audio, out, show_progress)
     print(f"\nWrote {out}", file=sys.stderr)
 
 

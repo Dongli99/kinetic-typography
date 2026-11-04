@@ -1,6 +1,6 @@
 # Next architecture
 
-The agreed direction for the next stage. A prototype has passed (see below), but none of this is in the package yet, and the code still works as [CLAUDE.md](../CLAUDE.md) describes. All sizes and savings here are estimates.
+The agreed direction for the next stage. A prototype has passed (see below), and step 1 of the [Stage 1 plan](#stage-1-plan) is in the package. All sizes and savings here are estimates.
 
 ## Goal
 
@@ -164,7 +164,7 @@ Agreed 2026-11-03. It moves the prototype's design into the package, so an agent
 
 Build order:
 
-1. **Core model.** The tree, changing properties, the four slots and the effect registry replace `layout.py` and `animate.py`. Every effect passes the shared tests.
+1. **Core model.** The tree, changing properties, the four slots and the effect registry replace `layout.py` and `animate.py`. Every effect passes the shared tests. *Done 2026-11-03.* Version 1 plans run through it as `fit`, `pop`, `fade` and `still`, and look as before, except that line boxes now fit the ink instead of the cap height. The prototype's hand direction rebuilt through it with 0 overlaps.
 2. **Plan format v2.** It adds sections, groups and lines, and per word an emphasis level (hero, weight or tone) and an optional size. It also adds placement fields and slot choices. `"emphasis": {"source": "meaning"}` is the default, with `"voice"` or `"both"` as opt-ins. `PLAN_VERSION` goes to 2, and version 1 plans are refused with a message rather than converted. Markup that doesn't apply, a word that doesn't match the recording, or an unknown effect is an error.
 3. **`kinetic check`**, with output a machine can read. It reports overlaps, clipping at the frame edge, words too brief to read, and the styles actually applied.
 4. **Previews.** Contact sheets and short low-resolution clips, since full renders with motion blur are slow.

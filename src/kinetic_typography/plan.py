@@ -4,9 +4,12 @@ import json
 from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 
+from .build import build
 from .model import Phrase, Style, Word
+from .scene import GroupSpec, Look, Scene, WordSpec
 
 PLAN_VERSION = 1
+TRIM_CHARS = " ,.;:—-\"“”‘()[]…"
 
 
 class PlanError(ValueError):
@@ -23,6 +26,35 @@ class Plan:
     def make_style(self) -> Style:
         values = {key: tuple(value) if isinstance(value, list) else value for key, value in self.style.items()}
         return Style(**values)
+
+    def make_scene(self) -> Scene:
+        """One phrase at a time, centered and sized to fill the frame, with its emphasis in the accent."""
+        style = self.make_style()
+        look = Look(style.width, style.height, style.fps, line_gap=style.line_gap, background=style.background)
+        groups = [
+            GroupSpec(
+                tuple(
+                    WordSpec(display_text(word.text), word.start, word.end, style.emphasis_scale, style.accent)
+                    if index == phrase.emphasis
+                    else WordSpec(display_text(word.text), word.start, word.end, 1.0, style.foreground)
+                    for index, word in enumerate(phrase.words)
+                ),
+                align="center",
+            )
+            for phrase in self.phrases
+        ]
+        slots = {
+            "place": {"type": "fit", "margin": style.margin, "max_size": style.max_font_size},
+            "arrive": {"type": "pop", "dur": style.pop_duration, "lead": style.lead_in},
+            # Version 1's hold is when a phrase is gone; the effect's is when it starts leaving.
+            "retire": {"type": "fade", "after": 1, "dur": style.fade_out, "hold": max(0.0, style.hold - style.fade_out)},
+            "camera": "still",
+        }
+        return build(groups, slots, look, self.duration)
+
+
+def display_text(token: str) -> str:
+    return token.replace("’", "'").strip(TRIM_CHARS).upper()
 
 
 def save_plan(plan: Plan, path: str) -> None:

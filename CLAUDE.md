@@ -17,8 +17,8 @@ tools/install-hooks.sh                                       # once per clone
 ## Architecture
 
 ```
-audio ─▶ transcribe or script ─▶ align ─▶ phrases ─▶ PLAN FILE ─▶ layout ─▶ animate ─▶ render
-         └───────────── automatic first draft ─────┘              └── deterministic ──┘
+audio ─▶ transcribe or script ─▶ align ─▶ phrases ─▶ PLAN FILE ─▶ build ─▶ effects ─▶ scene ─▶ render
+         └───────────── automatic first draft ─────┘              └──────────── deterministic ───────┘
 ```
 
 **The plan file is the contract.** Every creative decision is data in it, and everything after it is a deterministic function of it. Agents supply judgment by editing the plan. They never have to reach into the pipeline.
@@ -31,15 +31,16 @@ So a new creative feature is a new plan field that the renderer honors, with a s
 | `align.py` | Forced alignment of the words to the audio |
 | `spoken.py` | How numbers sound, and how spoken numbers read |
 | `phrases.py` | First draft of phrase breaks and emphasis |
-| `plan.py` | Plan file format and validation |
-| `layout.py` | Lines and sizes, in world space with the origin at the center |
-| `animate.py` | Word and camera state at any moment |
-| `render.py` | Skia frames, piped to ffmpeg |
+| `plan.py` | Plan file format and validation, and the groups and effects it chooses |
+| `scene.py` | The tree of world, groups and words, whose properties change over time through keys |
+| `effects.py` | The registry of `place`, `arrive`, `retire` and `camera` effects, which write those keys |
+| `build.py` | Groups plus a choice per slot, made into a scene |
+| `render.py` | Skia frames, piped to ffmpeg. It walks the tree and knows no effect by name |
 | `guide.md` | What a user's agent reads, via `kinetic guide` |
 
 Past technology choices and their evidence are in [docs/decisions.md](docs/decisions.md). Read it before changing the aligner, renderer or dependencies.
 
-The agreed direction for the next stage, not yet built, is in [docs/architecture-next.md](docs/architecture-next.md). Read it before changing layout, animation, rendering or the plan format.
+The agreed direction for the next stage, partly built, is in [docs/architecture-next.md](docs/architecture-next.md). Read it before changing layout, animation, rendering or the plan format.
 
 ## Principles
 
@@ -57,6 +58,7 @@ The agreed direction for the next stage, not yet built, is in [docs/architecture
 | GitHub Actions | Every push and PR | Failed installs and tests on Linux and macOS |
 | `tools/eval_alignment.py` | By hand, for timing changes | Timing regressions on a real recording |
 | `test_guide_is_packaged_...` | With the tests | Guide missing a command or style setting |
+| `test_shared_...` in `test_effects.py` | With the tests, on every registered effect | An effect without docs or defaults, words shown early, moving while spoken or never settling, groups that never leave, a camera losing the words |
 
 ## When changing things
 

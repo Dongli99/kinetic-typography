@@ -1,3 +1,4 @@
+import dataclasses
 import json
 import sys
 from types import SimpleNamespace
@@ -7,12 +8,10 @@ import pytest
 
 from kinetic_typography import cli
 from kinetic_typography.align import LETTER_IDS, PAD_ID, VOCAB, Alignment, align_to_log_probs, tokenize_script
-from kinetic_typography.animate import word_state
 from kinetic_typography.cli import main
-from kinetic_typography.layout import build_scenes, display_text
 from kinetic_typography.model import Phrase, Style, Word
 from kinetic_typography.phrases import group_phrases, merge_numbers
-from kinetic_typography.plan import Plan, PlanError, load_plan, save_plan
+from kinetic_typography.plan import Plan, PlanError, display_text, load_plan, save_plan
 from kinetic_typography.render import FrameRenderer
 from kinetic_typography.spoken import parse_number_words, spoken_words
 from kinetic_typography.transcribe import Transcript, transcribe
@@ -260,7 +259,11 @@ def test_display_text_keeps_questions_and_contractions():
     assert display_text("$6.3 billion,") == "$6.3 BILLION"
 
 
-# Layout and motion
+# Today's look, through the scene
+
+
+def plain_scene(text, style=Style(), duration=10.0, phrases=None):
+    return Plan("talk.wav", duration, phrases or group_phrases(timed(text)), dataclasses.asdict(style)).make_scene()
 
 
 @pytest.mark.parametrize("style", [Style(), Style(width=1920, height=1080), Style(width=1080, height=1920)])
@@ -269,38 +272,32 @@ def test_display_text_keeps_questions_and_contractions():
     ["internationalization", "I", "the quick brown fox jumps", "extraordinary misunderstanding"],
 )
 def test_layout_stays_inside_the_margins(text, style):
-    scene = build_scenes(group_phrases(timed(text)), 10.0, style)[0]
-    half_x = style.width / 2 - style.margin
-    half_y = style.height / 2 - style.margin
-    for word in scene.words:
-        assert -half_x - 1 <= word.x and word.x + word.width <= half_x + 1
-        assert -half_y - 1 <= word.y <= half_y + 1
+    scene = plain_scene(text, style)
+    for word in scene.groups[0].words:
+        for x, y in scene.on_screen(word, word.start + 1.0):
+            assert style.margin - 1 <= x <= style.width - style.margin + 1
+            assert style.margin - 1 <= y <= style.height - style.margin + 1
 
 
-def test_scenes_never_overlap():
-    style = Style()
-    scenes = build_scenes(group_phrases(timed("One two. Three four. Five six.")), 3.0, style)
-    assert all(a.end <= b.start for a, b in zip(scenes, scenes[1:]))
+def test_phrases_are_never_on_screen_together():
+    scene = plain_scene("One two. Three four. Five six.", duration=3.0)
+    for t in np.arange(0, 3.0, 0.01):
+        assert sum(any(w.opacity(t) > 0 for w in g.words) for g in scene.groups) <= 1, t
 
 
 def test_word_is_hidden_until_it_is_spoken_then_settles():
-    style = Style()
-    scene = build_scenes([Phrase(tuple(timed("alpha beta")), 1)], 5.0, style)[0]
-    second = scene.words[1]
-    assert word_state(second, scene, second.start - 0.1, style) is None
-    settled = word_state(second, scene, second.start + 0.25, style)
-    assert settled.opacity == pytest.approx(1.0)
-    assert settled.scale == pytest.approx(1.0)
-    assert settled.y_offset == pytest.approx(0.0)
+    scene = plain_scene("", phrases=[Phrase(tuple(timed("alpha beta")), 1)], duration=5.0)
+    second = scene.groups[0].words[1]
+    assert second.opacity(second.start - 0.01) == 0
+    for prop in ("opacity", "scale", "x", "y"):
+        assert second.get(prop, second.start + 0.25) == pytest.approx(second.base[prop])
 
 
 def test_rendering_is_repeatable_and_draws_text():
-    style = Style()
-    scene = build_scenes(group_phrases(timed("alpha beta")), 5.0, style)[0]
-    renderer = FrameRenderer(style)
-    empty = renderer.draw(None, 0.0).copy()
-    first = renderer.draw(scene, 0.3).copy()
-    second = renderer.draw(scene, 0.3).copy()
+    renderer = FrameRenderer(plain_scene("alpha beta", duration=5.0))
+    empty = renderer.draw(0.0).copy()
+    first = renderer.draw(0.3).copy()
+    second = renderer.draw(0.3).copy()
     assert first.shape == (1080, 1080, 4)
     assert np.array_equal(first, second)
     assert not np.array_equal(first, empty)
