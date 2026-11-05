@@ -295,14 +295,15 @@ def camera_still(ctx, cam: Camera, groups: list[Group]):
 
 
 @effect("camera", "follow", hints={"with": 1, "zoom": 1.0, "tilt": 0.0, "cut": False})
-def camera_follow(ctx, cam: Camera, groups: list[Group], fill=0.6, max_zoom=1.7, travel=0.6, drift=0.05):
-    """Frame each group as it starts, turned so its lines read level.
+def camera_follow(ctx, cam: Camera, groups: list[Group], fill=0.6, max_zoom=1.7, travel=0.6, drift=0.05, linger=0.25):
+    """Frame each group as it starts, turned so its lines read level. It stays on a group until `linger` seconds
+    after its last word starts, then travels for up to `travel` seconds, faster when the next group comes soon.
 
     Its `camera` hints: with (how many groups, counting back from this one, to frame together),
     zoom (relative to the framing), tilt in degrees, and cut (jump instead of travelling).
     """
     width, height = ctx.size
-    prev, last_t = None, 0.0
+    prev, last_word = None, 0.0
     for i, g in enumerate(groups):
         hint = g.spec.camera
         framed = groups[max(0, i - hint.get("with", 1) + 1) : i + 1]
@@ -323,11 +324,11 @@ def camera_follow(ctx, cam: Camera, groups: list[Group], fill=0.6, max_zoom=1.7,
                 cam.key(prop, arrive, value, "out")
         else:
             cut = hint.get("cut", False)
-            leave = arrive - (0.001 if cut else min(travel, max(0.05, arrive - last_t - 0.05)))
+            leave = arrive - 0.001 if cut else min(max(arrive - travel, last_word + linger), arrive - 0.05)
             held = (*prev[:3], prev[3] * (1 + drift))  # zoom in slowly while holding
             for prop, a, b in zip(("x", "y", "rot", "zoom"), held, target):
                 cam.key(prop, leave, a, "linear")
                 cam.key(prop, arrive, b, "hold" if cut else "inout")
-        prev, last_t = target, arrive
+        prev, last_word = target, g.words[-1].start
     for prop, value in zip(("x", "y", "rot", "zoom"), prev):
         cam.key(prop, ctx.duration, value * (1 + drift) if prop == "zoom" else value, "linear")

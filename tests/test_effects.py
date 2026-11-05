@@ -17,7 +17,7 @@ HINTS = [{}, {"side": "right"}, {"side": "below", "turn": -90}, {}, {"side": "le
 
 
 def groups(texts=("Words stay", "in one world", "while a camera", "travels", "through it", "and old words leave"),
-           hints=HINTS):  # fmt: skip
+           hints=HINTS, pause=0.5):  # fmt: skip
     """Groups of 0.3s words with 0.5s pauses between them. The fourth starts a section."""
     specs, t = [], 0.5
     for index, text in enumerate(texts):
@@ -26,7 +26,7 @@ def groups(texts=("Words stay", "in one world", "while a camera", "travels", "th
             words.append(WordSpec(token, t, t + 0.3))
             t += 0.3
         specs.append(GroupSpec(tuple(words), section=index == 3, at=hints[index % len(hints)]))
-        t += 0.5
+        t += pause
     return specs, t + 3.0
 
 
@@ -166,6 +166,12 @@ def test_shared_the_camera_keeps_each_word_in_frame_while_it_is_spoken(name):
     for t in np.arange(0, scene.duration, 0.1):
         assert scene.camera.get("zoom", t) > 0 and all(math.isfinite(scene.camera.get(p, t)) for p in ("x", "y", "rot"))
     assert_words_in_frame(scene)
+
+
+def test_follow_stays_until_the_last_word_of_a_group_lands():
+    """It once left as early as it liked, so a group's last word could be spoken out of frame."""
+    specs, duration = groups(pause=0.08)  # groups following closely, as in quick speech
+    assert_words_in_frame(build(specs, CANVAS, LOOK, duration))
 
 
 def assert_words_in_frame(scene):
