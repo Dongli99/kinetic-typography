@@ -154,6 +154,7 @@ What it taught:
 
 - **Read emphasis from the meaning, and best from the source.** Whoever writes the script knows what matters, and marking emphasis as it's written is cheaper and more reliable than recovering it later.
 - **Voice analysis is optional.** It's an opt-in plan field, such as `"emphasis": {"source": "meaning"}` with `"voice"` or `"both"`. When on, it writes per-word stress into the plan as hints for the agent, never as decisions. It isn't a CLI flag.
+- **Say the limit loudly.** Emphasis needs understanding, so only a person or a capable model gets it right. The README, the guide and every draft say so plainly, rather than presenting the rules as a feature.
 - **The default needs a reader.** The tool can't read meaning alone. Marks come from the script, or from the agent driving the tool. Otherwise the fallback is the rules, which are improved but still weak, and the tool must report that it used them.
 - **Today's rules mark one word per phrase.** Emphasis should be rare and uneven, which is the main reason they over-mark.
 - **The models differ in how much they mark, not which words they see.** Haiku's picks were a subset of Claude's. The reference marked 24% of words, Haiku 13% and Claude 33%. Short words of contrast and negation, like *not*, *no* and *cover*, were the ones most often missed.

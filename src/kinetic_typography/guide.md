@@ -2,6 +2,8 @@
 
 `kinetic` turns a voiceover into a kinetic typography video. The tool does what it can measure: the words' timing, where each group fits, the camera, and finding what a viewer would see is wrong. You do what needs meaning: which words matter, how they group, and where the turns go. Every decision lives in a JSON plan file, and the video is made from the plan alone.
 
+**Emphasis is the part only you can do well, and it decides the video's quality.** The tool can't read meaning. Its draft guesses with rules, and on a narration that a person marked, those guesses were right 63% of the time and found about a third of the person's words. A plain layout with the right emphasis beats a rich one with the wrong emphasis, so spend your effort here first.
+
 ## Workflow
 
 ```bash

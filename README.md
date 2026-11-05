@@ -1,12 +1,14 @@
 # Kinetic Typography
 
-> **Early version:** tested on one recording so far.
+> **Early version:** tested on two recordings so far.
 
-Turn a voiceover into a kinetic typography video. Each word pops onto the screen as it is spoken.
+Turn a voiceover into a kinetic typography video. Words build up on a page as they're spoken, while a camera travels across it.
 
 - **Input:** an audio file (`.mp3` or `.wav`) in English, plus an optional script for when the audio is unclear
-- **Output:** a 1080x1080 `.mp4` with the animated words and your audio
+- **Output:** a 1920x1080 `.mp4` with the animated words and your audio
 - **Made for agents too:** every creative decision is in a JSON plan file that you or your AI agent can edit
+
+> **The main limitation: emphasis needs understanding.** Which words stand out decides how good the video is, and only a person or a capable AI model reading the content can choose them well. The tool can't. Without that, it guesses with rules: on a narration that a person marked, 63% of its guesses were right and it found about a third of their words. So the one-step video is a rough draft. For a good one, mark the emphasis yourself or have an agent do it.
 
 ## Install
 
@@ -31,7 +33,7 @@ kinetic make --audio talk.mp3 --out talk.mp4
 
 The first run downloads two speech models, 860 MB in total. After that, everything runs offline on your computer.
 
-The video is dark serif type on paper, built up on one page as a blurred camera travels across it. Its emphasis is guessed by rules, which can't read meaning, so the tool says so. Marking it yourself, or having an agent do it, makes the biggest difference.
+The video is dark serif type on paper, built up on one page as a blurred camera travels across it. Its emphasis is only a guess by rules, as above, and the tool says so every time.
 
 Words worked out from audio can be misheard, and you'll be told about ones the tool isn't sure of. If the audio is unclear or the words must be exact, add a script. It also skips the larger model's work:
 

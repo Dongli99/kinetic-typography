@@ -196,8 +196,8 @@ def _build_plan(audio: str, script: str | None) -> tuple[Plan, dict]:
         print(f"Check these words, which the audio barely supports: {', '.join(doubtful)}", file=sys.stderr)
     plan = draft_plan(audio, alignment.duration, group_phrases(alignment.words))
     print(
-        "Emphasis was guessed by rules, which can't read meaning. "
-        "Mark it in the plan for a better video: see `kinetic guide`.",
+        "Emphasis was only guessed by rules, which can't read meaning: they find about a third of what a person "
+        "would mark. For a good video, a person or a capable AI model should mark it in the plan. See `kinetic guide`.",
         file=sys.stderr,
     )
     return plan, {
