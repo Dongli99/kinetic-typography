@@ -30,6 +30,7 @@ LOOK_DEFAULTS = {
     "size": 64,
     "line_gap": 0.28,
     "background": [17, 17, 17],
+    "paper": False,
     "ink": [245, 245, 240],
     "emphasis": {
         "hero": {"size": 1.7, "color": [255, 210, 31]},
@@ -44,6 +45,18 @@ DEFAULT_SLOTS = {
     "retire": {"type": "fade", "after": 1, "dur": 0.08, "hold": 0.42},
     "camera": "still",
 }
+# A preset is a look and defaults that a plan's own look and defaults override, key by key.
+PRESETS = {
+    "plain": {"look": {}, "defaults": {}},
+    "gap": {
+        "look": {
+            "width": 1920, "height": 1080, "font": "EB Garamond", "upper": False, "align": "left",
+            "background": [238, 230, 214], "paper": True, "ink": [30, 24, 20],
+            "emphasis": {"hero": {"size": 1.6, "bold": True}, "weight": {"bold": True}, "tone": {"italic": True}},
+        },
+        "defaults": {"place": "canvas", "arrive": "blur-in", "retire": "rotate-shrink", "camera": "follow"},
+    },
+}  # fmt: skip
 SLOT_NAMES = ("place", "arrive", "retire", "camera")
 GROUP_FIELDS = ("text", "align", "at", "camera", "arrive", "retire")
 
@@ -61,10 +74,19 @@ class Plan:
     look: dict = field(default_factory=dict)  # overrides of LOOK_DEFAULTS
     defaults: dict = field(default_factory=lambda: dict(DEFAULT_SLOTS))
     emphasis: dict = field(default_factory=lambda: {"source": "meaning"})
+    preset: str = "plain"
 
     def make_scene(self) -> Scene:
-        look, treatments = _read_look(self.look)
-        slots = _read_slots({**DEFAULT_SLOTS, **self.defaults})
+        if not isinstance(self.preset, str) or self.preset not in PRESETS:
+            raise PlanError(f"preset: expected one of {', '.join(PRESETS)}, got {self.preset!r}")
+        preset = PRESETS[self.preset]
+        _only(self.look, tuple(LOOK_DEFAULTS), "look")
+        emphasis = self.look.get("emphasis", {})
+        if not isinstance(emphasis, dict):
+            raise PlanError("look.emphasis: expected an object")
+        look = {**preset["look"], **self.look, "emphasis": {**preset["look"].get("emphasis", {}), **emphasis}}
+        look, treatments = _read_look(look)
+        slots = _read_slots({**DEFAULT_SLOTS, **preset["defaults"], **self.defaults})
         specs = _read_sections(self.sections, self.words, slots, look, treatments)
         return build(specs, slots, look, self.duration)
 
@@ -98,6 +120,7 @@ def save_plan(plan: Plan, path: str) -> None:
         audio_text = str(audio)
     head = {
         "version": PLAN_VERSION,
+        "preset": plan.preset,
         "audio": audio_text,
         "duration": round(plan.duration, 3),
         "emphasis": plan.emphasis,
@@ -140,7 +163,7 @@ def load_plan(path: str) -> Plan:
         )
     if data.get("version") != PLAN_VERSION:
         raise PlanError(f"version: expected {PLAN_VERSION}, got {data.get('version')!r}")
-    _only(data, ("version", "audio", "duration", "emphasis", "look", "defaults", "sections", "words"), "")
+    _only(data, ("version", "preset", "audio", "duration", "emphasis", "look", "defaults", "sections", "words"), "")
 
     audio = data.get("audio")
     if not isinstance(audio, str) or not audio:
@@ -169,7 +192,8 @@ def load_plan(path: str) -> Plan:
     words = [_read_word(raw, f"words[{index}]") for index, raw in enumerate(raw_words)]
 
     resolved = Path(audio) if Path(audio).is_absolute() else Path(path).resolve().parent / audio
-    plan = Plan(str(resolved), float(duration), words, sections, data.get("look", {}), data.get("defaults", {}), emphasis)
+    plan = Plan(str(resolved), float(duration), words, sections, data.get("look", {}), data.get("defaults", {}), emphasis,
+                data.get("preset", "plain"))  # fmt: skip
     try:
         plan.make_scene()  # every mistake surfaces here, not halfway through a render
     except EffectError as error:
@@ -198,8 +222,9 @@ def _read_look(raw: dict) -> tuple[Look, dict]:
             raise PlanError(f"look.{key}: expected a number from 0, got {values[key]!r}")
     if values["font"] not in FAMILIES:
         raise PlanError(f"look.font: expected one of {', '.join(FAMILIES)}, got {values['font']!r}")
-    if not isinstance(values["upper"], bool):
-        raise PlanError(f"look.upper: expected true or false, got {values['upper']!r}")
+    for key in ("upper", "paper"):
+        if not isinstance(values[key], bool):
+            raise PlanError(f"look.{key}: expected true or false, got {values[key]!r}")
     if values["align"] not in ALIGNS:
         raise PlanError(f"look.align: expected left, center or right, got {values['align']!r}")
     background, ink = _color(values["background"], "look.background"), _color(values["ink"], "look.ink")
@@ -231,7 +256,7 @@ def _read_look(raw: dict) -> tuple[Look, dict]:
         treatments[level] = treatment
     treatments[None] = {**TREATMENT, "color": ink}
     look = Look(values["width"], values["height"], values["fps"], float(values["size"]), float(values["line_gap"]),
-                background, values["font"])  # fmt: skip
+                background, values["font"], values["paper"])  # fmt: skip
     return look, {"upper": values["upper"], "align": values["align"], **treatments}
 
 

@@ -39,7 +39,7 @@ kinetic make --audio talk.mp3 --script talk.txt --out talk.mp4
 
 ### Adjust the result
 
-To change the emphasis, the groups of words, the font or the motion, make a plan file first. You mark emphasis in each group's text, like `**hero**`, `*weight*` and `_tone_`:
+To change the emphasis, the groups of words, the font or the motion, make a plan file first. You mark emphasis in each group's text, like `**hero**`, `*weight*` and `_tone_`. Set `"preset": "gap"` for dark serif type on paper, built up on one page as a blurred camera travels across it:
 
 ```bash
 kinetic plan --audio talk.mp3 --out talk.plan.json
@@ -83,7 +83,6 @@ Contributing, by hand or with an agent? Start with [CLAUDE.md](CLAUDE.md).
 
 ## Roadmap
 
-- Motion blur, a paper look and presets
 - A better first draft without an agent
 - Custom fonts
 

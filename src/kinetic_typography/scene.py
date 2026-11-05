@@ -165,6 +165,7 @@ class Look:
     line_gap: float = 0.28  # space between one line's ink and the next, relative to text size
     background: tuple[int, int, int] = (17, 17, 17)
     font: str = "Archivo Black"
+    paper: bool = False  # the background as paper, darker toward the corners
 
     @property
     def fonts(self) -> Fonts:

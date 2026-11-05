@@ -204,7 +204,7 @@ def _render(plan: Plan, out: str, scale: float = 1.0, start: float = 0.0, end: f
         if done == total or done % scene.look.fps == 0:
             print(f"\rRendering {done}/{total} frames", end="", file=sys.stderr, flush=True)
 
-    render_video(scene, plan.audio, out, show_progress, scale, start, end)
+    render_video(plan.make_scene, plan.audio, out, show_progress, scale, start, end)
     print(f"\nWrote {out}", file=sys.stderr)
 
 

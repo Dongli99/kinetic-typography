@@ -10,7 +10,7 @@ from kinetic_typography.cli import main
 from kinetic_typography.effects import EFFECTS, HINTS, SLOTS, parameters
 from kinetic_typography.model import Phrase, Word
 from kinetic_typography.phrases import group_phrases
-from kinetic_typography.plan import GROUP_FIELDS, LOOK_DEFAULTS, PlanError, draft_plan, load_plan, save_plan
+from kinetic_typography.plan import GROUP_FIELDS, LOOK_DEFAULTS, PRESETS, PlanError, draft_plan, load_plan, save_plan
 from kinetic_typography.render import FrameRenderer
 
 SPOKEN = ["$6.3 billion", "left", "the", "world's", "biggest", "crypto", "exchange."]
@@ -155,6 +155,9 @@ MISTAKES = [
     (lambda d: d.update(defaults={"zoom": "still"}), "defaults.zoom: unknown field"),
     (lambda d: d["sections"][0]["groups"][1].update(retire={"type": "fade", "durr": 1}), r"groups\[1\]\.retire\.durr: fade has no such parameter"),
     (lambda d: d.update(look={"colour": [0, 0, 0]}), "look.colour: unknown field"),
+    (lambda d: d.update(preset="gapp"), "preset: expected one of plain, gap, got 'gapp'"),
+    (lambda d: d.update(preset=["gap"]), "preset: expected one of plain, gap"),
+    (lambda d: d.update(look={"paper": "yes"}), "look.paper: expected true or false"),
     (lambda d: d.update(look={"font": "Comic Sans"}), "look.font: expected one of Archivo Black, EB Garamond"),
     (lambda d: d.update(look={"ink": [0, 0, 300]}), r"look\.ink: expected \[red, green, blue\]"),
     (lambda d: d.update(look={"emphasis": {"weight": {"bold": True}}}), "look.emphasis.weight.bold: Archivo Black has no bold style. Fonts that do: EB Garamond"),
@@ -170,6 +173,27 @@ def test_a_mistake_is_an_error_that_names_the_fix(tmp_path, change, message):
     change(data)
     with pytest.raises(PlanError, match=message):
         load(tmp_path, data)
+
+
+# Presets
+
+
+def test_a_preset_supplies_a_look_and_effects_that_the_plan_overrides(tmp_path):
+    scene = load(tmp_path, plan_data(preset="gap")).make_scene()
+    assert (scene.look.font, scene.look.width, scene.look.paper) == ("EB Garamond", 1920, True)
+    assert "blur" in scene.groups[0].words[0].tracks  # blur-in, not pop
+    words = words_of(tmp_path, plan_data(["**$6.3 billion** left", REST], {"width": 1080, "emphasis": {"tone": {"size": 0.8}}},
+                                         preset="gap"))  # fmt: skip
+    hero = words[0]
+    assert (hero.spec.size, hero.spec.bold) == (1.6, True)  # the preset's hero, kept
+    assert load(tmp_path, plan_data(look={"width": 1080}, preset="gap")).make_scene().look.width == 1080
+
+
+def test_a_plan_without_a_preset_is_plain_and_a_draft_says_so(tmp_path):
+    assert load(tmp_path, plan_data()).make_scene().look.font == "Archivo Black"
+    plan = draft_plan(str(tmp_path / "talk.wav"), 5.0, group_phrases(timed(SPOKEN)))
+    save_plan(plan, str(tmp_path / "draft.json"))
+    assert json.loads((tmp_path / "draft.json").read_text())["preset"] == "plain"
 
 
 # Today's look, through a draft
@@ -228,7 +252,7 @@ def test_guide_is_packaged_and_covers_every_command_field_and_effect(capsys):
     guide = capsys.readouterr().out
     for command in ("make", "plan", "check", "preview", "render", "frame"):
         assert f"kinetic {command}" in guide, f"kinetic {command} is missing from the guide"
-    for name in [*LOOK_DEFAULTS, *LOOK_DEFAULTS["emphasis"], *GROUP_FIELDS, "sections", "words", "defaults", "emphasis"]:
+    for name in [*LOOK_DEFAULTS, *LOOK_DEFAULTS["emphasis"], *GROUP_FIELDS, *PRESETS, "preset", "sections", "words", "defaults", "emphasis"]:
         assert f"`{name}`" in guide, f"{name} is missing from the guide"
     for slot in SLOTS:
         for name in EFFECTS[slot]:

@@ -71,6 +71,8 @@ Word error against the known script, one 60-second narration on CPU, 2026-10-30.
 
 60 seconds of 1080x1080 video renders in about 4 seconds. Frames come from a pure function of the plan and time, so output is repeatable and any moment can be previewed alone with `kinetic frame`.
 
+Motion blur draws up to 10 sub-frames while the camera moves. It blurs 29% of frames in the hand-directed `gap` video, at 2.8 draws per frame on average, so drawing alone takes 20.5 seconds for 60 seconds of 1920x1080. Sub-frames are summed in Skia layers rather than in numpy. Frames are drawn in parallel by worker processes, since each depends only on the plan and its time. The workers write into slots of a shared memory-mapped file, because sending 8 MB frames back through a pipe cost 6 seconds of the gain. On a machine with 4 performance cores, the whole render takes 13.6 seconds instead of 23.7, with the same bytes out. Encoding 1080p alone takes about 7 seconds, which is now most of what's left. Short renders, under 90 frames, stay in one process.
+
 **Rejected:**
 
 None of these were benchmarked. They were ruled out on what they'd add to the install and the design:

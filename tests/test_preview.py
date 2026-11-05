@@ -75,3 +75,52 @@ def test_a_smaller_frame_shows_the_same_picture(plan):
     half = FrameRenderer(scene, 0.5).draw(0.6)[..., :3].astype(float)
     shrunk = full.reshape(180, 2, 320, 2, 3).mean(axis=(1, 3))
     assert np.abs(shrunk - half).mean() < 3 and half.std() > 10
+
+
+# Rendering: motion blur, paper and parallel frames
+
+
+def moving_scene(plan_path, preset="gap"):
+    from kinetic_typography.plan import load_plan
+
+    loaded = load_plan(plan_path)
+    loaded.preset = preset
+    return loaded.make_scene()
+
+
+def test_a_frame_is_the_same_whatever_was_drawn_before_it(plan):
+    """Workers draw frames out of order, so no frame may depend on the one before."""
+    scene = moving_scene(plan)
+    fresh = FrameRenderer(scene).draw(1.0).copy()
+    used = FrameRenderer(scene)
+    used.draw(2.5), used.draw(0.3)
+    assert np.array_equal(used.draw(1.0), fresh)
+
+
+def test_the_camera_blurs_only_while_it_moves(plan):
+    still, moving = FrameRenderer(moving_scene(plan, "plain")), FrameRenderer(moving_scene(plan))
+    times = np.arange(0, 3, 1 / 30)
+    assert {still.samples(t) for t in times} == {1}
+    counts = [moving.samples(t) for t in times]
+    assert max(counts) > 1 and min(counts) == 1  # it travels between groups and rests on them
+
+
+def test_paper_is_the_same_every_time_and_toasted_at_the_corners(plan):
+    a, b = (FrameRenderer(moving_scene(plan)).draw(0.0)[..., :3].astype(float) for _ in range(2))
+    assert np.array_equal(a, b)
+    middle, corner = a[150:210, 290:350].mean(), a[:30, :30].mean()
+    assert corner < middle - 20 and a[150:210, 290:350].std() > 1  # darker edges, and not flat
+
+
+def test_frames_drawn_in_parallel_make_the_same_video(plan, tmp_path, monkeypatch):
+    from kinetic_typography import render
+    from kinetic_typography.plan import load_plan
+
+    loaded = load_plan(plan)
+    loaded.preset = "gap"
+    monkeypatch.setattr(render, "PARALLEL_FROM", 10**6)
+    render.render_video(loaded.make_scene, loaded.audio, str(tmp_path / "one.mp4"), scale=0.25)
+    monkeypatch.setattr(render, "PARALLEL_FROM", 1)
+    monkeypatch.setattr(render.os, "cpu_count", lambda: 2)
+    render.render_video(loaded.make_scene, loaded.audio, str(tmp_path / "two.mp4"), scale=0.25)
+    assert (tmp_path / "one.mp4").read_bytes() == (tmp_path / "two.mp4").read_bytes()

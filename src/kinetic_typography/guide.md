@@ -41,6 +41,7 @@ Every command that reads a plan checks all of it first. A mistake is an error na
 ```json
 {
  "version": 2,
+ "preset": "plain",
  "audio": "talk.mp3",
  "duration": 60.5,
  "emphasis": {"source": "meaning"},
@@ -67,6 +68,7 @@ Every command that reads a plan checks all of it first. A mistake is an error na
 | `sections` | The direction: groups of the spoken words, in order. A new section clears the screen |
 | `groups` | What's shown together. Every spoken word belongs to exactly one group, in order |
 | `emphasis` | Where emphasis comes from. `{"source": "meaning"}`, from the markup, is the only option so far |
+| `preset` | A starting look and effects, which `look` and `defaults` override. See below |
 | `look` | How it appears. See below |
 | `defaults` | The effect for each slot: `place`, `arrive`, `retire` and `camera`. See the effects reference at the end |
 
@@ -94,9 +96,22 @@ A mark can cover several words, as in `_not your keys_`. A spoken word written w
 
 Mark sparingly. Emphasis works when it's rare and uneven: often a quarter of the words or fewer, with `hero` at most once a paragraph. Short words of contrast and negation, like *not*, *no* and *but*, are easy to miss.
 
+## Presets
+
+A preset sets a whole style at once. Your `look` and `defaults` then change only the keys you give. In `look.emphasis` that's level by level, so `{"tone": {"size": 0.8}}` keeps the preset's `hero` and `weight`.
+
+| Preset | Look | Effects |
+|---|---|---|
+| `plain` | The defaults below: one group at a time, in heavy capitals on a dark background | `fit`, `pop`, `fade`, `still` |
+| `gap` | 1920 by 1080, `EB Garamond` in dark ink on paper, left-aligned. `hero` is 1.6 times the size in bold, `weight` bold, and `tone` italic | `canvas`, `blur-in`, `rotate-shrink`, `follow` |
+
+With `gap`, words build up on one page as the camera travels across it, so the `at` hints for each group are what make the layout: which side of the last group it goes on, and its turn. Without hints, each group goes below the last.
+
+The camera blurs as it moves, the way a film camera does. That's automatic: a still camera costs nothing, and a moving one renders several times slower.
+
 ## Look settings
 
-Colors are `[red, green, blue]` from 0 to 255. These are the defaults:
+Colors are `[red, green, blue]` from 0 to 255. These are the defaults, which are the `plain` preset:
 
 | Setting | Default | Meaning |
 |---|---|---|
@@ -108,6 +123,7 @@ Colors are `[red, green, blue]` from 0 to 255. These are the defaults:
 | `size` | 64 | Text size in pixels, for place effects that don't size text themselves |
 | `line_gap` | 0.28 | Space between lines' ink, relative to text size |
 | `background` | [17, 17, 17] | Background color |
+| `paper` | false | Show the background as paper, with grain and toasted corners |
 | `ink` | [245, 245, 240] | Text color |
 | `emphasis` | See below | How each level looks |
 
@@ -163,4 +179,4 @@ Run `kinetic check` after every edit. It takes about a second and reads the plan
 {"ok": true, "sheet": "sheet.png", "tiles": [{"group": "sections[0].groups[0]", "at": 0.49}, {"group": "sections[0].groups[1]", "at": 3.55}]}
 ```
 
-A full render of a 60-second video takes a few seconds.
+A full render of a 60-second video takes a few seconds with `plain`, and about 15 seconds with a moving camera.
