@@ -10,6 +10,7 @@ class Word:
     text: str
     start: float
     end: float
+    stress: float | None = None  # how strongly the voice stressed it, 0 to 1, once measured
 
 
 @dataclass(frozen=True)

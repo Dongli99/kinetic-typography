@@ -127,9 +127,10 @@ def save_plan(plan: Plan, path: str) -> None:
     lines.append(" ],")
     lines.append(' "words": [')
     words = [
-        json.dumps({"text": w.text, "start": round(w.start, 3), "end": round(w.end, 3)}, ensure_ascii=False)
+        json.dumps({"text": w.text, "start": round(w.start, 3), "end": round(w.end, 3)}
+                   | ({} if w.stress is None else {"stress": w.stress}), ensure_ascii=False)
         for w in plan.words
-    ]
+    ]  # fmt: skip
     lines.append(",\n".join(f"  {w}" for w in words))
     lines.append(" ]")
     Path(path).write_text("{\n" + "\n".join(lines) + "\n}\n", encoding="utf-8")
@@ -167,7 +168,7 @@ def load_plan(path: str) -> Plan:
     if emphasis.get("source", "meaning") != "meaning":
         raise PlanError(
             f"emphasis.source: only \"meaning\" is available, got {emphasis['source']!r}. "
-            "Reading emphasis from the voice isn't built yet."
+            "The voice gives hints, not emphasis: run `kinetic analyze` to add each word's stress."
         )
     for key in ("look", "defaults"):
         if not isinstance(data.get(key, {}), dict):
@@ -193,11 +194,14 @@ def load_plan(path: str) -> Plan:
 def _read_word(raw: object, where: str) -> Word:
     if not isinstance(raw, dict) or not isinstance(raw.get("text"), str) or not raw["text"].strip():
         raise PlanError(f"{where}.text: expected non-empty text")
-    _only(raw, ("text", "start", "end"), where)
+    _only(raw, ("text", "start", "end", "stress"), where)
     start, end = raw.get("start"), raw.get("end")
     if not _is_number(start) or not _is_number(end) or start < 0 or end < start:
         raise PlanError(f"{where}: expected 0 <= start <= end, got start={start!r} end={end!r}")
-    return Word(raw["text"], float(start), float(end))
+    stress = raw.get("stress")
+    if stress is not None and not (_is_number(stress) and 0 <= stress <= 1):
+        raise PlanError(f"{where}.stress: expected a number from 0 to 1, got {stress!r}")
+    return Word(raw["text"], float(start), float(end), stress)
 
 
 def _read_look(raw: dict) -> tuple[Look, dict]:

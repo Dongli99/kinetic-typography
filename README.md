@@ -49,6 +49,7 @@ kinetic plan --audio talk.mp3 --out talk.plan.json
 kinetic check --plan talk.plan.json                              # overlapping, clipped or too-brief words
 kinetic preview --plan talk.plan.json --out sheet.png            # a frame per group; or clip.mp4, at half size
 kinetic frame --plan talk.plan.json --at 12.5 --out check.png    # one moment
+kinetic analyze --plan talk.plan.json                            # optional: how the voice stressed each word, as hints
 kinetic render --plan talk.plan.json --out talk.mp4
 ```
 

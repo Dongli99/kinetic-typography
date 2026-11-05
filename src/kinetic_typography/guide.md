@@ -6,6 +6,7 @@
 
 ```bash
 kinetic plan --audio talk.mp3 --out talk.plan.json --json
+kinetic analyze --plan talk.plan.json --json    # optional: how the voice stressed each word
 # Read the draft, then edit talk.plan.json: emphasis first, then groups, then placement.
 kinetic check --plan talk.plan.json --json
 kinetic preview --plan talk.plan.json --out sheet.png --json
@@ -97,6 +98,16 @@ Moving `*untouchable.*^1.4` to `{"side": "left"}` puts it on words still showing
 
 `group` names the group to change, and `lands_on` the one it hits. Here, `{"side": "below", "align": "right"}` puts it back clear. `styles` is left out of this result for space.
 
+## Voice hints
+
+`kinetic analyze --plan talk.plan.json` measures how strongly the voice stressed each word and writes it into the plan's `words` as `stress`, from 0 (least in this recording) to 1 (most). It takes about a second, and it changes nothing else:
+
+```json
+{"ok": true, "plan": "talk.plan.json", "words": 157, "most_stressed": [{"word": "2.8 billion", "at": 40.42, "stress": 1.0}, {"word": "$6.3 billion", "at": 0.24, "stress": 0.99}]}
+```
+
+`most_stressed` is the top tenth of the words. Stress is evidence, not a decision: nothing is marked or drawn from it. It's measured from loudness, pitch, length and pauses, each against the speaker's own trend through the sentence. On a text-to-speech narration it ranked a person's marked words above unmarked ones 69% of the time, where 50% is chance, and it added nothing to reading the text. Use it where reading the text leaves you unsure, such as which of two words in a sentence carries it, and expect it to work better on a human voice that stresses for meaning.
+
 ## Audio alone, or with a script
 
 Audio alone is the default: the tool works out the words, then times them. Add `--script talk.txt` when you have the exact words and either the audio is unclear or the words must be exact, such as names and invented spellings. The script's words are then what's shown, and nothing is transcribed.
@@ -159,10 +170,10 @@ Every command that reads a plan checks all of it first. A mistake is an error na
 |---|---|
 | `audio` | Voiceover path, relative to the plan file |
 | `duration` | Video length in seconds |
-| `words` | The record: each spoken word and when, in seconds. Edit `text` only to fix a misheard word, and times only if they're wrong |
+| `words` | The record: each spoken word and when, in seconds, plus its `stress` once `kinetic analyze` has run. Edit `text` only to fix a misheard word, and times only if they're wrong |
 | `sections` | The direction: groups of the spoken words, in order. A new section clears the screen |
 | `groups` | What's shown together. Every spoken word belongs to exactly one group, in order |
-| `emphasis` | Where emphasis comes from. `{"source": "meaning"}`, from the markup, is the only option so far |
+| `emphasis` | Where emphasis comes from: `{"source": "meaning"}`, the markup, is the only option. The voice gives hints through `kinetic analyze` instead |
 | `preset` | A starting look and effects, which `look` and `defaults` override. See below |
 | `look` | How it appears. See below |
 | `defaults` | The effect for each slot: `place`, `arrive`, `retire` and `camera`. See the effects reference at the end |

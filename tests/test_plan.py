@@ -10,6 +10,7 @@ import pytest
 
 import kinetic_typography
 from kinetic_typography.check import check
+from kinetic_typography import cli
 from kinetic_typography.cli import main
 from kinetic_typography.effects import EFFECTS, HINTS, SLOTS, parameters
 from kinetic_typography.model import Phrase, Word
@@ -149,6 +150,8 @@ MISTAKES = [
     (lambda d: d.update(duration=-1), "duration"),
     (lambda d: d.update(emphasis={"source": "voice"}), "emphasis.source: only \"meaning\" is available"),
     (lambda d: d["words"][1].update(start=9), r"words\[1\]: expected 0 <= start <= end"),
+    (lambda d: d["words"][2].update(stress=1.5), r"words\[2\].stress: expected a number from 0 to 1"),
+    (lambda d: d.update(emphasis={"source": "both"}), "run `kinetic analyze`"),
     (lambda d: d.update(sections=[]), "sections: expected a non-empty list"),
     (group_text("$6.3 billion lift", REST), r"groups\[0\]\.text: 'lift' doesn't match the next spoken word, 'left' \(words\[1\] at 0\.90s\)"),
     (group_text("$6.3 billion left", "the world's biggest crypto"), r"words\[6\] onward aren't in any group, from \"exchange\.\""),
@@ -269,6 +272,19 @@ def test_frame_writes_a_png_from_an_edited_plan(tmp_path, capsys):
     assert image.read_bytes().startswith(b"\x89PNG")
 
 
+def test_analyze_writes_each_words_stress_into_the_plan_and_nothing_else(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(cli, "_require_ffmpeg", lambda: None)
+    monkeypatch.setattr(cli, "decode_audio", lambda path: np.random.default_rng(0).normal(0, 0.1, 16000 * 5).astype(np.float32))
+    before = load(tmp_path, plan_data())
+    path = str(tmp_path / "talk.plan.json")
+    assert main(["analyze", "--plan", path, "--json"]) == 0
+    result = json.loads(capsys.readouterr().out)
+    after = load_plan(path)
+    assert sorted(w.stress for w in after.words)[::len(after.words) - 1] == [0.0, 1.0]
+    assert [(w.text, w.start, w.end) for w in after.words] == [(w.text, w.start, w.end) for w in before.words]
+    assert after.sections == before.sections and result["words"] == len(SPOKEN) and result["most_stressed"]
+
+
 def test_every_json_example_in_the_guide_is_valid_and_its_plan_loads(tmp_path):
     guide = (Path(kinetic_typography.__file__).parent / "guide.md").read_text()
     blocks = re.findall(r"```json\n(.*?)```", guide, re.S)
@@ -286,7 +302,7 @@ def test_every_json_example_in_the_guide_is_valid_and_its_plan_loads(tmp_path):
 def test_guide_is_packaged_and_covers_every_command_field_and_effect(capsys):
     assert main(["guide"]) == 0
     guide = capsys.readouterr().out
-    for command in ("make", "plan", "check", "preview", "render", "frame"):
+    for command in ("make", "plan", "check", "preview", "render", "frame", "analyze"):
         assert f"kinetic {command}" in guide, f"kinetic {command} is missing from the guide"
     for name in [*LOOK_DEFAULTS, *LOOK_DEFAULTS["emphasis"], *GROUP_FIELDS, *PRESETS, "preset", "sections", "words", "defaults", "emphasis"]:
         assert f"`{name}`" in guide, f"{name} is missing from the guide"

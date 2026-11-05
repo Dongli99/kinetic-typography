@@ -17,6 +17,7 @@ from .draft import draft_plan
 from .plan import Plan, load_plan, save_plan
 from .render import PREVIEW_SCALE, render_video, save_frame, save_sheet
 from .transcribe import transcribe
+from .voice import stress
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -63,6 +64,9 @@ def main(argv: list[str] | None = None) -> int:
     preview.add_argument("--from", dest="start", type=float, default=0.0, help="start time in seconds (default: 0)")
     preview.add_argument("--to", dest="end", type=float, help="end time in seconds (default: the end)")
 
+    analyze = add("analyze", "Measure how strongly the voice stressed each word, and write it into the plan as hints.")
+    analyze.add_argument("--plan", required=True, help="plan file, updated in place")
+
     commands.add_parser("guide", help="Print the guide for AI agents.")
 
     args = parser.parse_args(argv)
@@ -72,7 +76,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     try:
-        result = {"make": run_make, "plan": run_plan, "render": run_render, "frame": run_frame, "check": run_check, "preview": run_preview}[args.command](args)
+        result = {"make": run_make, "plan": run_plan, "render": run_render, "frame": run_frame, "check": run_check, "preview": run_preview,
+                  "analyze": run_analyze}[args.command](args)  # fmt: skip
     except (OSError, ValueError, RuntimeError) as error:
         if args.json:
             print(json.dumps({"ok": False, "error": str(error)}))
@@ -138,6 +143,16 @@ def run_preview(args: argparse.Namespace) -> dict:
     save_sheet(scene, tiles, args.out)
     print(f"Wrote {args.out}", file=sys.stderr)
     return {"sheet": args.out, "tiles": [{"group": name, "at": t} for name, t in tiles]}
+
+
+def run_analyze(args: argparse.Namespace) -> dict:
+    plan = _load_checked_plan(args.plan)
+    plan.words = [dataclasses.replace(w, stress=s) for w, s in zip(plan.words, stress(decode_audio(plan.audio), plan.words))]
+    save_plan(plan, args.plan)
+    top = sorted(plan.words, key=lambda w: -w.stress)[: max(1, len(plan.words) // 10)]
+    print(f"Most stressed: {', '.join(w.text for w in top)}\nWrote stress for {len(plan.words)} words to {args.plan}", file=sys.stderr)
+    return {"plan": args.plan, "words": len(plan.words),
+            "most_stressed": [{"word": w.text, "at": round(w.start, 2), "stress": w.stress} for w in top]}  # fmt: skip
 
 
 def _print_check(result: dict) -> None:

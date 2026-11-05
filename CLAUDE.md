@@ -31,6 +31,7 @@ So a new creative feature is a new plan field that the renderer honors, with a s
 | `align.py` | Forced alignment of the words to the audio |
 | `spoken.py` | How numbers sound, and how spoken numbers read |
 | `phrases.py` | First draft of sections, groups, lines and emphasis |
+| `voice.py` | How strongly the voice stressed each word, written into the plan by `kinetic analyze` as hints that nothing else reads |
 | `draft.py` | Those made into a plan, with each group placed by a rule that the overlap and clipping checks search |
 | `plan.py` | Plan file format, its markup and validation. Every mistake is a `PlanError` naming the field |
 | `scene.py` | The tree of world, groups and words, whose properties change over time through keys |
