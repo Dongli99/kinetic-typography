@@ -9,7 +9,7 @@ from kinetic_typography import cli
 from kinetic_typography.align import LETTER_IDS, PAD_ID, VOCAB, Alignment, align_to_log_probs, tokenize_script
 from kinetic_typography.cli import main
 from kinetic_typography.model import Word
-from kinetic_typography.phrases import group_phrases, merge_numbers
+from kinetic_typography.phrases import GROUP_SIZES, LINE_SIZES, group_phrases, merge_numbers
 from kinetic_typography.plan import load_plan
 from kinetic_typography.spoken import parse_number_words, spoken_words
 from kinetic_typography.transcribe import Transcript, transcribe
@@ -222,33 +222,69 @@ def test_every_word_survives_in_order_within_the_limits():
     words = timed("apples pears plums figs dates limes kiwis mangos grapes melons lemons peaches")
     phrases = group_phrases(words)
     assert [word for phrase in phrases for word in phrase.words] == words
-    assert all(len(phrase.words) <= 5 for phrase in phrases)
+    assert all(len(phrase.words) <= max(GROUP_SIZES) for phrase in phrases)
+    assert all(sum(phrase.lines) == len(phrase.words) and max(phrase.lines) <= max(LINE_SIZES) for phrase in phrases)
+
+
+def test_a_group_is_a_clause_in_lines():
+    phrases = group_phrases(timed("Six point three billion dollars left the world's biggest crypto exchange in twenty minutes."))
+    assert len(phrases) < 3 and any(len(phrase.lines) > 1 for phrase in phrases)
+
+
+def test_a_long_pause_between_sentences_starts_a_section_once_one_is_long_enough():
+    first = timed("Apples pears plums figs dates limes kiwis mangos grapes melons lemons peaches.")
+    later = [Word(w.text, w.start + 10, w.end + 10) for w in timed("Then more. And more.")]
+    phrases = group_phrases(first + later)
+    assert [p.section for p in phrases].count(True) == 1 and phrases[[p.section for p in phrases].index(True)].words[0].text == "Then"
+    short = timed("Apples pears.") + later
+    assert not any(p.section for p in group_phrases(short))
 
 
 # Emphasis
 
 
 def emphasized(words):
+    """Each marked word and its level, in order."""
     return [
-        phrase.words[phrase.emphasis].text.strip(".,?!") for phrase in group_phrases(words) if phrase.emphasis is not None
+        (word.text.strip(".,?!"), level)
+        for phrase in group_phrases(words)
+        for word, level in zip(phrase.words, phrase.levels)
+        if level
     ]
 
 
 def test_a_number_outranks_a_longer_word():
-    assert emphasized(timed("Vast losses reached 30"))[-1] == "30"
+    assert emphasized(timed("Vast losses reached 30")) == [("30", "hero")]
 
 
 def test_a_money_amount_is_emphasized():
-    assert "$6.3 billion" in emphasized(timed("Six point three billion dollars left"))
+    assert ("$6.3 billion", "hero") in emphasized(timed("Six point three billion dollars left"))
 
 
 def test_emphasis_skips_stop_words():
-    assert emphasized(timed("into the wilderness")) == ["wilderness"]
+    assert emphasized(timed("into the wilderness")) == [("wilderness", "weight")]
 
 
 def test_a_repeated_word_gives_way_to_a_new_one():
-    picks = emphasized(timed("Binance froze accounts. Binance named nobody."))
-    assert picks[-1] != "Binance"
+    picks = [text for text, _ in emphasized(timed("Accounts froze at Binance. Withdrawals stopped at Binance."))]
+    assert picks.count("Binance") == 1, picks
+
+
+def test_a_repeated_number_is_one_number_not_its_magnitude():
+    assert "3.3 billion" in dict(emphasized(timed("Six point three billion dollars left. Three point three billion stayed.")))
+
+
+def test_a_negation_is_tone():
+    assert ("never", "tone") in emphasized(timed("The money will never be found"))
+
+
+def test_emphasis_is_rare_and_has_one_hero_at_most():
+    script = """The comforting story: your money sits in a vault, offline, untouchable. Picture a shop till,
+    cash out front. This money sat in the online version: a hot wallet, always connected. Binance says it
+    began with a compromised engineer's laptop. One copied key opened tills on ten chains."""
+    levels = [level for phrase in group_phrases(timed(script)) for level in phrase.levels]
+    assert 0 < sum(map(bool, levels)) <= 0.2 * len(levels)
+    assert levels.count("hero") <= 1
 
 
 # Command line
@@ -290,6 +326,11 @@ def test_audio_alone_is_enough_and_misheard_words_are_reported(plan_command):
     assert code == 0
     assert result["words_from"] == "audio"
     assert result["doubtful"] == ["mishard"]
+
+
+def test_a_draft_reports_that_its_emphasis_came_from_rules(plan_command):
+    code, result, _ = plan_command(heard="Hello there.")
+    assert code == 0 and result["emphasis_from"] == "rules"
 
 
 def test_a_script_replaces_the_recognizer(plan_command, tmp_path):

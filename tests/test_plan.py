@@ -6,11 +6,13 @@ import json
 import numpy as np
 import pytest
 
+from kinetic_typography.check import check
 from kinetic_typography.cli import main
 from kinetic_typography.effects import EFFECTS, HINTS, SLOTS, parameters
 from kinetic_typography.model import Phrase, Word
 from kinetic_typography.phrases import group_phrases
-from kinetic_typography.plan import GROUP_FIELDS, LOOK_DEFAULTS, PRESETS, PlanError, draft_plan, load_plan, save_plan
+from kinetic_typography.draft import draft_plan
+from kinetic_typography.plan import GROUP_FIELDS, LOOK_DEFAULTS, PRESETS, PlanError, load_plan, save_plan
 from kinetic_typography.render import FrameRenderer
 
 SPOKEN = ["$6.3 billion", "left", "the", "world's", "biggest", "crypto", "exchange."]
@@ -56,7 +58,8 @@ def words_of(tmp_path, data):
 def test_a_draft_survives_a_round_trip_and_reads_one_word_per_line(tmp_path):
     (tmp_path / "talk.wav").write_bytes(b"")
     words = timed(SPOKEN)
-    plan = draft_plan(str(tmp_path / "talk.wav"), 5.0, [Phrase(tuple(words[:2]), 0), Phrase(tuple(words[2:]), 2)])
+    phrases = [Phrase(tuple(words[:2]), levels=("weight", None)), Phrase(tuple(words[2:]), (2, 3), (None, None, "tone", None, None))]
+    plan = draft_plan(str(tmp_path / "talk.wav"), 5.0, phrases)
     path = tmp_path / "talk.plan.json"
     save_plan(plan, str(path))
     text = path.read_text()
@@ -64,14 +67,26 @@ def test_a_draft_survives_a_round_trip_and_reads_one_word_per_line(tmp_path):
     assert len(text.splitlines()) < 25
     loaded = load_plan(str(path))
     assert loaded.words == words and loaded.sections == plan.sections
-    assert loaded.sections[0]["groups"] == [{"text": "*$6.3 billion* left"}, {"text": "the world's *biggest* crypto exchange"}]
+    assert [g["text"] for g in loaded.sections[0]["groups"]] == ["*$6.3 billion* left", "the world's / _biggest_ crypto exchange"]
 
 
-def test_a_draft_looks_like_the_first_version(tmp_path):
-    words = [w for g in draft_plan("talk.wav", 5.0, group_phrases(timed(SPOKEN))).make_scene().groups for w in g.words]
-    marked = [w for w in words if w.spec.size > 1]
-    assert words[0].text == "$6.3 BILLION" and words[-1].text == "EXCHANGE"
-    assert marked and all(w.color == (255, 210, 31) and w.spec.size == 1.35 for w in marked)
+def test_a_draft_is_on_the_gap_canvas_with_emphasis_seen_at_a_glance():
+    plan = draft_plan("talk.wav", 5.0, group_phrases(timed(SPOKEN)))
+    words = [w for g in plan.make_scene().groups for w in g.words]
+    marked = [w for w in words if w.spec.level]
+    assert plan.preset == "gap" and words[0].text == "$6.3 billion" and words[-1].text == "exchange"
+    assert marked and all(w.spec.size > 1.2 and (w.spec.bold or w.spec.italic) for w in marked)
+
+
+def test_drafted_groups_land_clear_of_words_still_showing_and_inside_the_frame():
+    script = """$6.3 billion left the world's biggest crypto exchange in twenty minutes. How do you rob a vault?
+    The comforting story: your money sits in a vault, offline, untouchable. This crew took twenty minutes.
+    Picture a shop till, cash out front. This money sat in the online version: a hot wallet, always connected.
+    Binance says it began with a compromised engineer's laptop. One copied key opened tills on ten chains."""
+    plan = draft_plan("talk.wav", 30.0, group_phrases(timed(script.split(), 0.3)))
+    found = check(plan.make_scene(), plan.group_names())
+    assert len(plan.group_names()) > 8 and sum("turn" in g.get("at", {}) for s in plan.sections for g in s["groups"]) > 1
+    assert not found["overlaps"] and not found["clipped"], found
 
 
 def test_a_version_1_plan_is_refused_with_the_way_forward(tmp_path):
@@ -185,23 +200,27 @@ def test_a_preset_supplies_a_look_and_effects_that_the_plan_overrides(tmp_path):
     words = words_of(tmp_path, plan_data(["**$6.3 billion** left", REST], {"width": 1080, "emphasis": {"tone": {"size": 0.8}}},
                                          preset="gap"))  # fmt: skip
     hero = words[0]
-    assert (hero.spec.size, hero.spec.bold) == (1.6, True)  # the preset's hero, kept
+    assert (hero.spec.size, hero.spec.bold) == (2.4, True)  # the preset's hero, kept
     assert load(tmp_path, plan_data(look={"width": 1080}, preset="gap")).make_scene().look.width == 1080
 
 
-def test_a_plan_without_a_preset_is_plain_and_a_draft_says_so(tmp_path):
+def test_a_plan_without_a_preset_is_plain_and_a_draft_says_which_it_uses(tmp_path):
     assert load(tmp_path, plan_data()).make_scene().look.font == "Archivo Black"
     plan = draft_plan(str(tmp_path / "talk.wav"), 5.0, group_phrases(timed(SPOKEN)))
     save_plan(plan, str(tmp_path / "draft.json"))
-    assert json.loads((tmp_path / "draft.json").read_text())["preset"] == "plain"
+    assert json.loads((tmp_path / "draft.json").read_text())["preset"] == "gap"
 
 
-# Today's look, through a draft
+# The plain look
 
 
 def draft_scene(text, look=None, duration=10.0):
+    """The draft's groups in the plain look, one at a time in the middle."""
     plan = draft_plan("talk.wav", duration, group_phrases(timed(text.split(), 0.2)))
-    plan.look = look or {}
+    plan.preset, plan.look = "plain", look or {}
+    for section in plan.sections:
+        for group in section["groups"]:
+            group.pop("at", None)
     return plan.make_scene()
 
 

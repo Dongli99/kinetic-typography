@@ -14,5 +14,9 @@ class Word:
 
 @dataclass(frozen=True)
 class Phrase:
+    """Words shown together, as a group of lines."""
+
     words: tuple[Word, ...]
-    emphasis: int | None = None  # index into words
+    lines: tuple[int, ...] = ()  # words per line; () for one line
+    levels: tuple[str | None, ...] = ()  # each word's emphasis: hero, weight, tone or None
+    section: bool = False  # starts a new section

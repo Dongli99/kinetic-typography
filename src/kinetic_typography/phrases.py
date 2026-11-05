@@ -1,8 +1,8 @@
-"""Turn timed words into on-screen phrases and pick each phrase's key word.
+"""Turn timed words into sections of groups, each set in lines, and guess their emphasis.
 
-Breaks are chosen per sentence by minimizing a cost over every possible split, so a good
-break later can outweigh a mediocre one now. Emphasis is a best guess: to overrule it, or
-any break, edit the plan file.
+Groups and lines are chosen per sentence by minimizing a cost over every possible split, so a
+good break later can outweigh a mediocre one now. Sections start at long pauses. Emphasis is a
+best guess by rules: to overrule it, or any break, edit the plan file.
 """
 
 import re
@@ -10,12 +10,18 @@ import re
 from .model import Phrase, Word
 from .spoken import MAGNITUDES, letters_only, parse_number_words
 
-MAX_WORDS = 5
-MAX_CHARS = 30
+# Cost of a line, and of a group of lines, by its number of words. Their keys set the most words.
+LINE_SIZES = {1: 1.5, 2: 0.3, 3: 0.0, 4: 0.0, 5: 0.6}
+GROUP_SIZES = {1: 1.5, 2: 0.8, 3: 0.4, 4: 0.1, 5: 0.0, 6: 0.0, 7: 0.2, 8: 0.6}
+MAX_CHARS = 30  # in a line
 CLOSING_MARKS = "\"'”’)]"
 SENTENCE_MARKS = (".", "!", "?", "…")
 CLAUSE_MARKS = (";", ":", "—")
 SENTENCE_PAUSE_SECONDS = 0.7
+SECTION_PAUSE_SECONDS = 0.7  # between sentences
+SECTION_WORDS = 12
+WEIGHT_SCORE = 0.9
+HERO_SCORE = 1.5
 MIN_READ_SECONDS = 0.45
 
 MONTHS = frozenset(
@@ -36,6 +42,9 @@ HANGING_WORDS = frozenset(
 )
 OPENING_WORDS = frozenset(
     "in on at for from with by into across over under after before and or but because that which who".split()
+)
+NEGATIONS = frozenset(
+    "not no never nothing none nobody nowhere neither nor without cannot can't won't don't doesn't didn't isn't aren't wasn't weren't".split()
 )
 UNBREAKABLE_COST = 20.0
 
@@ -102,13 +111,17 @@ def _final_mark(word: Word) -> str:
 
 
 def group_phrases(words: list[Word]) -> list[Phrase]:
+    """Groups of words in sections, with their lines and each word's emphasis level."""
     words = merge_numbers(words)
-    seen: set[str] = set()
     phrases = []
-    for sentence in _split_sentences(words):
-        for group in _best_split(sentence):
-            phrases.append(Phrase(tuple(group), _pick_emphasis(group, sentence, seen)))
-            seen.update(_key(word) for word in group)
+    seen: set[str] = set()
+    for number, section in enumerate(_split_sections(_split_sentences(words))):
+        levels = _pick_emphasis(section, seen)
+        for sentence in section:
+            for group in _best_split(sentence, GROUP_SIZES, 2 * MAX_CHARS):
+                lines = tuple(len(line) for line in _best_split(group, LINE_SIZES, MAX_CHARS))
+                first = number > 0 and group[0] is section[0][0]
+                phrases.append(Phrase(tuple(group), lines, tuple(levels.get(id(w)) for w in group), first))
     return phrases
 
 
@@ -124,16 +137,28 @@ def _split_sentences(words: list[Word]) -> list[list[Word]]:
     return sentences
 
 
-def _best_split(sentence: list[Word]) -> list[list[Word]]:
+def _split_sections(sentences: list[list[Word]]) -> list[list[list[Word]]]:
+    """Sentences into sections, at a long pause. A section is at least SECTION_WORDS long."""
+    sections = [[sentences[0]]]
+    for previous, sentence in zip(sentences, sentences[1:]):
+        size = sum(len(s) for s in sections[-1])
+        if sentence[0].start - previous[-1].end >= SECTION_PAUSE_SECONDS and size >= SECTION_WORDS:
+            sections.append([])
+        sections[-1].append(sentence)
+    return sections
+
+
+def _best_split(sentence: list[Word], sizes: dict[int, float], max_chars: int) -> list[list[Word]]:
+    """The split into runs of words with the least cost: each run's size, and the breaks between them."""
     count = len(sentence)
     best = [0.0] + [float("inf")] * count
     previous = [0] * (count + 1)
     for stop in range(1, count + 1):
-        for start in range(max(0, stop - MAX_WORDS), stop):
+        for start in range(max(0, stop - max(sizes)), stop):
             group = sentence[start:stop]
-            if len(group) > 1 and sum(len(word.text) for word in group) + len(group) - 1 > MAX_CHARS:
+            if len(group) > 1 and sum(len(word.text) for word in group) + len(group) - 1 > max_chars:
                 continue
-            cost = best[start] + _phrase_cost(group)
+            cost = best[start] + _size_cost(group, sizes)
             if stop < count:
                 cost += _break_cost(sentence, stop - 1)
             if cost < best[stop]:
@@ -148,8 +173,8 @@ def _best_split(sentence: list[Word]) -> list[list[Word]]:
     return groups
 
 
-def _phrase_cost(group: list[Word]) -> float:
-    cost = {1: 1.5, 2: 0.3, 3: 0.0, 4: 0.0, 5: 0.6}[len(group)]
+def _size_cost(group: list[Word], sizes: dict[int, float]) -> float:
+    cost = sizes[len(group)]
     seconds = group[-1].end - group[0].start
     if seconds < MIN_READ_SECONDS:
         cost += 2.0 * (MIN_READ_SECONDS - seconds) / MIN_READ_SECONDS
@@ -204,28 +229,48 @@ def _is_numeric(word: Word) -> bool:
 
 
 def _key(word: Word) -> str:
+    """The word without case or punctuation. A number keeps its digits, so 3.3 billion isn't 6.3 billion."""
+    if _is_numeric(word):
+        return word.text.lower().rstrip(".,;:!?—\"'”’)]…")
     return letters_only(word.text) or word.text
 
 
-def _pick_emphasis(group: list[Word], sentence: list[Word], seen: set[str]) -> int | None:
-    scores = {}
-    for index, word in enumerate(group):
-        key = _key(word)
-        if key in STOP_WORDS:
-            continue
-        score = 1.0 + min(len(key), 12) * 0.05
-        if _is_numeric(word):
-            after_month = index > 0 and _key(group[index - 1]) in MONTHS
-            score += 0.5 if after_month else 3.0
-        if key in seen:
-            score -= 1.2
-        scores[index] = score
-    if not scores:
-        return None
-    # English tends to put the point at the end of a phrase.
-    last = max(scores)
-    scores[last] += 0.8
-    chosen = max(scores, key=lambda index: (scores[index], index))
-    if len(group) == 1 and not _is_numeric(group[chosen]):
-        return None
-    return chosen
+def _pick_emphasis(section: list[list[Word]], seen: set[str]) -> dict[int, str]:
+    """Emphasis levels by word id: few and uneven, so some sentences get none.
+
+    Negations are tone, since they turn a sentence round. Other words are weight when they score
+    high enough: numbers most, then the end of a sentence, names and long words, less if said before.
+    The section's best word becomes its hero.
+    """
+    levels, scores = {}, {}
+    for sentence in section:
+        last = max((i for i, w in enumerate(sentence) if _key(w) not in STOP_WORDS), default=None)
+        for index, word in enumerate(sentence):
+            key = _key(word)
+            if key in NEGATIONS:
+                levels[id(word)] = "tone"
+                continue
+            if key in STOP_WORDS:
+                continue
+            score = min(len(key), 12) * 0.05
+            if _is_numeric(word):
+                after_month = index > 0 and _key(sentence[index - 1]) in MONTHS
+                score += 0.3 if after_month else 1.5
+            if index == last:
+                score += 0.6
+            elif _ends_clause(word):
+                score += 0.3
+            if index > 0 and _is_name(sentence, index):
+                score += 0.3
+            if key in seen:
+                score -= 1.0
+            scores[id(word)] = score
+        seen.update(_key(word) for word in sentence)
+    for word_id, score in scores.items():
+        if score >= WEIGHT_SCORE:
+            levels[word_id] = "weight"
+    if scores:
+        best = max(scores, key=scores.get)
+        if scores[best] >= HERO_SCORE:
+            levels[best] = "hero"
+    return levels

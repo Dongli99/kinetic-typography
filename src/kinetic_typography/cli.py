@@ -13,7 +13,8 @@ from .effects import describe
 from .align import align_script, decode_audio, tokenize_script
 from .check import MIN_READ, SETTLE, check
 from .phrases import group_phrases
-from .plan import Plan, draft_plan, load_plan, save_plan
+from .draft import draft_plan
+from .plan import Plan, load_plan, save_plan
 from .render import PREVIEW_SCALE, render_video, save_frame, save_sheet
 from .transcribe import transcribe
 
@@ -179,10 +180,17 @@ def _build_plan(audio: str, script: str | None) -> tuple[Plan, dict]:
     if doubtful:
         print(f"Check these words, which the audio barely supports: {', '.join(doubtful)}", file=sys.stderr)
     plan = draft_plan(audio, alignment.duration, group_phrases(alignment.words))
+    print(
+        "Emphasis was guessed by rules, which can't read meaning. "
+        "Mark it in the plan for a better video: see `kinetic guide`.",
+        file=sys.stderr,
+    )
     return plan, {
         "words_from": "script" if script else "audio",
+        "emphasis_from": "rules",
         "duration": round(plan.duration, 3),
-        "groups": len(plan.sections[0]["groups"]),
+        "sections": len(plan.sections),
+        "groups": len(plan.group_names()),
         "confidence": round(alignment.confidence, 2),
         "doubtful": doubtful,
     }

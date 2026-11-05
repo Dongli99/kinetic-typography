@@ -30,7 +30,8 @@ So a new creative feature is a new plan field that the renderer honors, with a s
 | `transcribe.py` | The words, when there's no script. Never their timing. |
 | `align.py` | Forced alignment of the words to the audio |
 | `spoken.py` | How numbers sound, and how spoken numbers read |
-| `phrases.py` | First draft of phrase breaks and emphasis |
+| `phrases.py` | First draft of sections, groups, lines and emphasis |
+| `draft.py` | Those made into a plan, with each group placed by a rule that the overlap and clipping checks search |
 | `plan.py` | Plan file format, its markup and validation. Every mistake is a `PlanError` naming the field |
 | `scene.py` | The tree of world, groups and words, whose properties change over time through keys |
 | `effects.py` | The registry of `place`, `arrive`, `retire` and `camera` effects, which write those keys. It validates choices and hints, and writes the guide's effect reference |
@@ -58,6 +59,7 @@ The agreed direction for the next stage, partly built, is in [docs/architecture-
 | `tools/git-hooks/pre-commit` | Every commit | Secrets (gitleaks) and failing tests |
 | GitHub Actions | Every push and PR | Failed installs and tests on Linux and macOS |
 | `tools/eval_alignment.py` | By hand, for timing changes | Timing regressions on a real recording |
+| `tools/eval_emphasis.py` | By hand, for emphasis rule changes | Precision and recall of the draft's emphasis against a reference a person marked |
 | `test_guide_is_packaged_...` | With the tests | Guide missing a command, plan field, look setting, effect, parameter or hint |
 | `test_a_mistake_is_an_error_...` | With the tests | A plan mistake that's skipped instead of reported |
 | `test_shared_...` in `test_effects.py` | With the tests, on every registered effect | An effect without docs or defaults, words shown early, moving while spoken or never settling, groups that never leave, a camera losing the words |

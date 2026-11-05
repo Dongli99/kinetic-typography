@@ -31,6 +31,8 @@ kinetic make --audio talk.mp3 --out talk.mp4
 
 The first run downloads two speech models, 860 MB in total. After that, everything runs offline on your computer.
 
+The video is dark serif type on paper, built up on one page as a blurred camera travels across it. Its emphasis is guessed by rules, which can't read meaning, so the tool says so. Marking it yourself, or having an agent do it, makes the biggest difference.
+
 Words worked out from audio can be misheard, and you'll be told about ones the tool isn't sure of. If the audio is unclear or the words must be exact, add a script. It also skips the larger model's work:
 
 ```bash
@@ -39,7 +41,7 @@ kinetic make --audio talk.mp3 --script talk.txt --out talk.mp4
 
 ### Adjust the result
 
-To change the emphasis, the groups of words, the font or the motion, make a plan file first. You mark emphasis in each group's text, like `**hero**`, `*weight*` and `_tone_`. Set `"preset": "gap"` for dark serif type on paper, built up on one page as a blurred camera travels across it:
+To change the emphasis, the groups of words, the font or the motion, make a plan file first. You mark emphasis in each group's text, like `**hero**`, `*weight*` and `_tone_`. Set `"preset": "plain"` for one group at a time in heavy capitals:
 
 ```bash
 kinetic plan --audio talk.mp3 --out talk.plan.json
@@ -58,9 +60,9 @@ Tell your agent to run `kinetic guide`. It prints the workflow, the plan format 
 
 With a script, the video shows its words, so spelling and names stay as you wrote them.
 
-- **Digits are fine.** `$6.3 billion`, `2026` and `20%` are matched to how they sound. Spoken-out numbers like "six point three billion dollars" appear as `$6.3 BILLION`.
+- **Digits are fine.** `$6.3 billion`, `2026` and `20%` are matched to how they sound. Spoken-out numbers like "six point three billion dollars" appear as `$6.3 billion`.
 - **Differences from the recording are fine.** Ad-libs in the audio are skipped, and you'll be told about script words the audio doesn't seem to contain. A script that doesn't match at all is refused.
-- **Punctuation shapes the phrases.** Sentence ends always start a new phrase, and commas, colons and dashes encourage one.
+- **Punctuation and pauses shape the groups.** Sentence ends always start a new group, and commas, colons and dashes encourage one. A pause of 0.7 seconds or more between sentences starts a new section.
 
 ## How it works
 
@@ -83,7 +85,6 @@ Contributing, by hand or with an agent? Start with [CLAUDE.md](CLAUDE.md).
 
 ## Roadmap
 
-- A better first draft without an agent
 - Custom fonts
 
 ## License

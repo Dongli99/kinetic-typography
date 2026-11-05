@@ -11,12 +11,13 @@ from pathlib import Path
 
 from .build import build
 from .effects import ALIGNS, EffectError, check_hints, resolve
-from .model import Phrase, Word
+from .model import Word
 from .scene import FAMILIES, GroupSpec, Look, Scene, WordSpec, fonts_for
 
 PLAN_VERSION = 2
 LEVELS = ("hero", "weight", "tone")
 MARKS = (("**", "hero"), ("*", "weight"), ("_", "tone"))  # longest first
+MARK = {level: mark for mark, level in MARKS}
 SIZE = re.compile(r"\^(\d+(?:\.\d+)?)$")
 TRIM_CHARS = " ,.;:—-\"“”‘()[]…*_"
 
@@ -52,7 +53,8 @@ PRESETS = {
         "look": {
             "width": 1920, "height": 1080, "font": "EB Garamond", "upper": False, "align": "left",
             "background": [238, 230, 214], "paper": True, "ink": [30, 24, 20],
-            "emphasis": {"hero": {"size": 1.6, "bold": True}, "weight": {"bold": True}, "tone": {"italic": True}},
+            "emphasis": {"hero": {"size": 2.4, "bold": True}, "weight": {"size": 1.5, "bold": True},
+                         "tone": {"size": 1.25, "italic": True}},
         },
         "defaults": {"place": "canvas", "arrive": "blur-in", "retire": "rotate-shrink", "camera": "follow"},
     },
@@ -96,19 +98,6 @@ class Plan:
 
 
 # ------------------------------------------------------------------ writing
-
-
-def draft_plan(audio: str, duration: float, phrases: list[Phrase]) -> Plan:
-    """A first draft: one section, a group per phrase, and the phrase's emphasis as weight."""
-    words, groups = [], []
-    for phrase in phrases:
-        tokens = []
-        for index, word in enumerate(phrase.words):
-            words.append(word)
-            shown = word.text.replace("’", "'").strip(TRIM_CHARS) or word.text
-            tokens.append(f"*{shown}*" if index == phrase.emphasis else shown)
-        groups.append({"text": " ".join(tokens)})
-    return Plan(audio, duration, words, [{"groups": groups}])
 
 
 def save_plan(plan: Plan, path: str) -> None:

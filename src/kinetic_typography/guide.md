@@ -15,6 +15,15 @@ kinetic render --plan talk.plan.json --out talk.mp4 --json
 
 `kinetic make --audio talk.mp3 --out talk.mp4 --json` does plan and render in one step, for when the automatic choices are good enough.
 
+## The draft
+
+`kinetic plan` writes a complete first draft, which `kinetic check` passes:
+
+- **Sections** start at a pause of 0.7 seconds or more between sentences, once a section has 12 words.
+- **Groups** are clauses of up to 8 words, set in lines of up to 5, breaking where the punctuation and pauses suggest.
+- **Placement** uses the `gap` preset. Each group gets `at` hints from a rule: mostly below the last, every third turned across it, and a turned page with a 400-pixel gap at each section. Where a spot would land on words still showing, or clip, the next one on the group's list is used.
+- **Emphasis** comes from rules, and the result says so with `"emphasis_from": "rules"`. Negations like *not* and *never* are `tone`. Numbers, sentence ends, names and long words score toward `weight`, and less if said before, and a section's best-scoring word is its `hero`. It marks about one word in eight. On a reference that a person marked, 63% of its marks were right, and it found 32% of theirs. The rest needs meaning, which is your part.
+
 ## Audio alone, or with a script
 
 Audio alone is the default: the tool works out the words, then times them. Add `--script talk.txt` when you have the exact words and either the audio is unclear or the words must be exact, such as names and invented spellings. The script's words are then what's shown, and nothing is transcribed.
@@ -26,11 +35,12 @@ From audio alone, words can be misheard, and every wrong word shows on screen. R
 With `--json`, stdout carries exactly one JSON object and progress goes to stderr. Exit code 0 means success and 1 means failure.
 
 ```json
-{"ok": true, "plan": "talk.plan.json", "words_from": "audio", "duration": 60.5, "groups": 50, "confidence": -0.06, "doubtful": []}
+{"ok": true, "plan": "talk.plan.json", "words_from": "audio", "emphasis_from": "rules", "duration": 60.5, "sections": 6, "groups": 41, "confidence": -0.06, "doubtful": []}
 {"ok": false, "error": "sections[0].groups[3].text: 'lift' doesn't match the next spoken word, 'left' (words[12] at 4.10s)"}
 ```
 
 - `words_from` is `audio` or `script`.
+- `emphasis_from` is `rules`: the draft's emphasis is a guess for you to replace.
 - `doubtful` lists words to check. With a script, they were probably reworded or unspoken. From audio alone, they may be misheard, or the tool may have added a word nobody said, such as `billion` where it wrote `$2.8 billion` for a spoken "two point eight billion". An empty list doesn't prove the words are right.
 - `confidence` runs from 0 (perfect) downward. Correct words normally score above -0.5. Below -2.5, the tool refuses because the words don't match the audio.
 
@@ -103,7 +113,7 @@ A preset sets a whole style at once. Your `look` and `defaults` then change only
 | Preset | Look | Effects |
 |---|---|---|
 | `plain` | The defaults below: one group at a time, in heavy capitals on a dark background | `fit`, `pop`, `fade`, `still` |
-| `gap` | 1920 by 1080, `EB Garamond` in dark ink on paper, left-aligned. `hero` is 1.6 times the size in bold, `weight` bold, and `tone` italic | `canvas`, `blur-in`, `rotate-shrink`, `follow` |
+| `gap` | 1920 by 1080, `EB Garamond` in dark ink on paper, left-aligned. `hero` is 2.4 times the size in bold, `weight` 1.5 times in bold, and `tone` 1.25 times in italic, so emphasis shows at a glance | `canvas`, `blur-in`, `rotate-shrink`, `follow` |
 
 With `gap`, words build up on one page as the camera travels across it, so the `at` hints for each group are what make the layout: which side of the last group it goes on, and its turn. Without hints, each group goes below the last.
 
@@ -133,9 +143,9 @@ Colors are `[red, green, blue]` from 0 to 255. These are the defaults, which are
 
 Do these in order of value:
 
-1. **Emphasis.** The draft marks one word per group by rules about numbers, position, repetition and length, so it marks too much and misses meaning. Mark what carries the point.
+1. **Emphasis.** The draft's rules mark few words and miss what only meaning shows, like the image a sentence turns on. Mark what carries the point.
 2. **Groups.** Move words between groups so each reads as a unit of meaning. Start a new section where the subject changes.
-3. **Look and motion.** For example, `EB Garamond` with bold and italic levels, `canvas` placement with `follow`, and per-group `at` hints for turns.
+3. **Look and motion.** For example, a single word alone as its own group, larger, or a different `side` and `turn` in a group's `at` hints. After moving words between groups, run `kinetic check`, since the draft's placement was searched for the groups as they were.
 
 Don't change the timing unless you've found it wrong. It comes from the audio and is usually accurate to a few hundredths of a second.
 
@@ -179,4 +189,4 @@ Run `kinetic check` after every edit. It takes about a second and reads the plan
 {"ok": true, "sheet": "sheet.png", "tiles": [{"group": "sections[0].groups[0]", "at": 0.49}, {"group": "sections[0].groups[1]", "at": 3.55}]}
 ```
 
-A full render of a 60-second video takes a few seconds with `plain`, and about 15 seconds with a moving camera.
+A full render of a 60-second video takes a few seconds with `plain`, and about 15 seconds with a moving camera, as in the draft.

@@ -20,9 +20,9 @@ def check(scene: Scene, names: list[str]) -> dict:
     found = {"overlaps": _overlaps(scene, where), "clipped": [], "brief": []}
     for group in scene.groups:
         for word in group.words:
-            clipped = _clipped(scene, word)
-            if clipped:
-                found["clipped"].append({**_about(word, where), **clipped})
+            clipped_by = clipped(scene, word)
+            if clipped_by:
+                found["clipped"].append({**_about(word, where), **clipped_by})
             shown = _shown_for(scene, word)
             if shown < MIN_READ:
                 found["brief"].append({**_about(word, where), "shown": round(shown, 2)})
@@ -49,22 +49,26 @@ def _about(word: Word, where: dict) -> dict:
 
 def _overlaps(scene: Scene, where: dict) -> list[dict]:
     """Words that land, where they rest, on a word of another group still showing. One per pair of groups."""
-    found, seen = [], set()
-    for i, group in enumerate(scene.groups):
-        for word in group.words:
-            landing = word.corners(None)
-            for older in scene.groups[:i]:
-                if (id(group), id(older)) in seen:
-                    continue
-                for other in older.words:
-                    if other.opacity(word.start) > SHOWING and quads_overlap(landing, other.corners(word.start)):
-                        seen.add((id(group), id(older)))
-                        found.append({**_about(word, where), "lands_on": where[id(other)], "on_word": other.text})
-                        break
+    found = []
+    for index in range(len(scene.groups)):
+        for word, other in lands_on(scene, index):
+            found.append({**_about(word, where), "lands_on": where[id(other)], "on_word": other.text})
     return found
 
 
-def _clipped(scene: Scene, word: Word) -> dict | None:
+def lands_on(scene: Scene, index: int) -> list[tuple[Word, Word]]:
+    """For each older group that a word of group `index` lands on, the first such pair of words."""
+    found = []
+    words = scene.groups[index].words
+    for older in scene.groups[:index]:
+        pairs = ((word, other) for word in words for other in older.words if other.opacity(word.start) > SHOWING)
+        pair = next(((word, other) for word, other in pairs if quads_overlap(word.corners(None), other.corners(word.start))), None)
+        if pair:
+            found.append(pair)
+    return found
+
+
+def clipped(scene: Scene, word: Word) -> dict | None:
     """How far the word reaches past the frame edge just after it lands, if it does."""
     t = word.start + SETTLE
     xs, ys = zip(*scene.on_screen(word, t))
