@@ -2,10 +2,13 @@
 
 import copy
 import json
+import re
+from pathlib import Path
 
 import numpy as np
 import pytest
 
+import kinetic_typography
 from kinetic_typography.check import check
 from kinetic_typography.cli import main
 from kinetic_typography.effects import EFFECTS, HINTS, SLOTS, parameters
@@ -264,6 +267,20 @@ def test_frame_writes_a_png_from_an_edited_plan(tmp_path, capsys):
     assert main(["frame", "--plan", str(tmp_path / "talk.plan.json"), "--at", "1.0", "--out", str(image), "--json"]) == 0
     assert json.loads(capsys.readouterr().out)["ok"] is True
     assert image.read_bytes().startswith(b"\x89PNG")
+
+
+def test_every_json_example_in_the_guide_is_valid_and_its_plan_loads(tmp_path):
+    guide = (Path(kinetic_typography.__file__).parent / "guide.md").read_text()
+    blocks = re.findall(r"```json\n(.*?)```", guide, re.S)
+    plans = []
+    for block in blocks:
+        try:
+            values = [json.loads(block)]
+        except json.JSONDecodeError:  # one result per line
+            values = [json.loads(line) for line in block.splitlines() if line.strip()]
+        plans += [v for v in values if isinstance(v, dict) and "version" in v]
+    assert len(blocks) > 8 and len(plans) == 1
+    assert load(tmp_path, {**plans[0], "audio": "talk.wav"}).make_scene().groups
 
 
 def test_guide_is_packaged_and_covers_every_command_field_and_effect(capsys):

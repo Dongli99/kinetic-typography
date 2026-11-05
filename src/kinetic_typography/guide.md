@@ -1,34 +1,114 @@
 # Using kinetic: a guide for AI agents
 
-`kinetic` turns a voiceover into a kinetic typography video. The tool handles timing, layout and rendering, which it does reliably. You handle meaning, which it can only guess at. Decisions you can change live in a JSON plan file.
+`kinetic` turns a voiceover into a kinetic typography video. The tool does what it can measure: the words' timing, where each group fits, the camera, and finding what a viewer would see is wrong. You do what needs meaning: which words matter, how they group, and where the turns go. Every decision lives in a JSON plan file, and the video is made from the plan alone.
 
 ## Workflow
 
 ```bash
 kinetic plan --audio talk.mp3 --out talk.plan.json --json
-# Edit talk.plan.json to suit the content.
+# Read the draft, then edit talk.plan.json: emphasis first, then groups, then placement.
 kinetic check --plan talk.plan.json --json
 kinetic preview --plan talk.plan.json --out sheet.png --json
 kinetic frame --plan talk.plan.json --at 12.5 --out check.png --json
 kinetic render --plan talk.plan.json --out talk.mp4 --json
 ```
 
-`kinetic make --audio talk.mp3 --out talk.mp4 --json` does plan and render in one step, for when the automatic choices are good enough.
+Run `check` after every edit and fix what it finds. Look at a `preview` sheet before rendering, since a plan can pass every check and still read badly.
+
+`kinetic make --audio talk.mp3 --out talk.mp4 --json` does plan and render in one step, with no edits. Its emphasis is guessed by rules, so use it when a rough video is enough.
 
 ## The draft
 
-`kinetic plan` writes a complete first draft, which `kinetic check` passes:
+`kinetic plan` writes a complete first draft that `check` passes:
 
 - **Sections** start at a pause of 0.7 seconds or more between sentences, once a section has 12 words.
 - **Groups** are clauses of up to 8 words, set in lines of up to 5, breaking where the punctuation and pauses suggest.
 - **Placement** uses the `gap` preset. Each group gets `at` hints from a rule: mostly below the last, every third turned across it, and a turned page with a 400-pixel gap at each section. Where a spot would land on words still showing, or clip, the next one on the group's list is used.
-- **Emphasis** comes from rules, and the result says so with `"emphasis_from": "rules"`. Negations like *not* and *never* are `tone`. Numbers, sentence ends, names and long words score toward `weight`, and less if said before, and a section's best-scoring word is its `hero`. It marks about one word in eight. On a reference that a person marked, 63% of its marks were right, and it found 32% of theirs. The rest needs meaning, which is your part.
+- **Emphasis** comes from rules, and the result says so with `"emphasis_from": "rules"`. Negations like *not* and *never* are `tone`. Numbers, sentence ends, names and long words score toward `weight`, less if said before, and a section's best-scoring word is its `hero`. It marks about one word in eight. On a narration that a person marked, 63% of its marks were right, and it found 32% of theirs. The rest needs meaning, which is your part.
+
+## A worked example
+
+These edits are to the draft of a 60-second news narration about a crypto theft. Each was checked with `kinetic check`.
+
+### Emphasis and groups
+
+The draft's second section:
+
+```json
+[
+ {"text": "The comforting story", "at": {"side": "below", "gap": 400, "turn": -90}},
+ {"text": "your money sits / in a vault", "at": {"side": "below"}},
+ {"text": "offline", "at": {"side": "right"}},
+ {"text": "*untouchable*", "at": {"side": "right"}},
+ {"text": "This crew / took 20 minutes", "at": {"side": "below"}}
+]
+```
+
+The sentence sets up a belief, lists why it feels safe, and knocks it down. Directed:
+
+```json
+[
+ {"text": "The _comforting_ story:", "at": {"side": "below", "gap": 400, "turn": -90}},
+ {"text": "your money / sits in a *vault,*", "at": {"side": "below"}},
+ {"text": "_offline,_", "at": {"side": "right"}},
+ {"text": "*untouchable.*^1.4", "at": {"side": "below", "align": "right"}},
+ {"text": "This crew took / **20 minutes.**", "at": {"side": "below", "turn": 90, "gap": 60}}
+]
+```
+
+- `_comforting_` is `tone`: the word is ironic, and italic says so without shouting.
+- The list builds: `*vault,*`, then `_offline,_` beside it, then `*untouchable.*` on its own line and a little larger, with `^1.4`.
+- `**20 minutes.**` is the section's one `hero`, because it's the point the list was set up for. The draft had marked nothing there.
+- The last group turns 90 degrees, so the camera turns with it as the story turns.
+- Punctuation is kept in `text` because it's shown. Text must match the spoken words, but only letters and digits are compared.
+
+### Contrast
+
+The draft:
+
+```json
+[
+ {"text": "Binance says / it will cover / all losses", "at": {"side": "right", "turn": -90}},
+ {"text": "but withdrawals / are still *suspended*", "at": {"side": "below"}},
+ {"text": "**2.8 billion** is *frozen*", "at": {"side": "below"}}
+]
+```
+
+A promise, then the catch. The rules made the number the hero, but the news is the catch. Directed:
+
+```json
+[
+ {"text": "Binance says / it will *cover* all losses,", "at": {"side": "right", "turn": -90}},
+ {"text": "_but_ withdrawals / are still **suspended.**", "at": {"side": "below"}},
+ {"text": "2.8 billion / is *frozen.*", "at": {"side": "below", "align": "right"}}
+]
+```
+
+- `*cover*` is the promise and `**suspended.**` is the catch. `_but_` is the hinge between them: short words of contrast and negation, like *but*, *not* and *no*, are the ones most often missed.
+- The number loses its mark. A number isn't the point just because it's a number.
+
+### A check finding
+
+Moving `*untouchable.*^1.4` to `{"side": "left"}` puts it on words still showing. `kinetic check --json` says where:
+
+```json
+{"ok": true, "clean": false, "overlaps": [{"group": "sections[1].groups[3]", "word": "untouchable.", "at": 10.11, "lands_on": "sections[1].groups[1]", "on_word": "your"}], "clipped": [], "brief": []}
+```
+
+`group` names the group to change, and `lands_on` the one it hits. Here, `{"side": "below", "align": "right"}` puts it back clear. `styles` is left out of this result for space.
 
 ## Audio alone, or with a script
 
 Audio alone is the default: the tool works out the words, then times them. Add `--script talk.txt` when you have the exact words and either the audio is unclear or the words must be exact, such as names and invented spellings. The script's words are then what's shown, and nothing is transcribed.
 
 From audio alone, words can be misheard, and every wrong word shows on screen. Read the words in the plan against what you know of the content, and correct `text` directly: the timing stays right if the mistake is only spelling. If many words are wrong, supply a script.
+
+Writing a script:
+
+- English only, with or without a script. Non-English text won't align.
+- Write what's spoken. Digits are fine (`$6.3 billion`, `2026`, `20%`, `3rd`) because they're converted to how they sound.
+- Other than that, the script doesn't need to be perfect. Ad-libs in the audio are skipped, and reworded or unspoken script words are reported in `doubtful`.
+- Sentence ends always end a group in the draft. Commas, colons and dashes encourage a break.
 
 ## Reading results
 
@@ -51,21 +131,26 @@ Every command that reads a plan checks all of it first. A mistake is an error na
 ```json
 {
  "version": 2,
- "preset": "plain",
+ "preset": "gap",
  "audio": "talk.mp3",
- "duration": 60.5,
+ "duration": 4.0,
  "emphasis": {"source": "meaning"},
- "look": {"font": "EB Garamond", "upper": false, "emphasis": {"hero": {"size": 2, "bold": true}, "weight": {"bold": true}, "tone": {"italic": true}}},
- "defaults": {"place": "fit", "arrive": "pop", "retire": {"type": "fade", "after": 1, "dur": 0.08, "hold": 0.42}, "camera": "still"},
+ "look": {"emphasis": {"tone": {"size": 1.1, "italic": true}}},
+ "defaults": {"retire": {"type": "rotate-shrink", "angle": 90}},
  "sections": [
   {"groups": [
    {"text": "**$6.3 billion** left"},
-   {"text": "the world's / *biggest* crypto exchange", "retire": "drop"}
+   {"text": "the world's / *biggest* crypto exchange", "at": {"side": "below"}, "retire": "drop"}
   ]}
  ],
  "words": [
   {"text": "$6.3 billion", "start": 0.24, "end": 1.10},
-  {"text": "left", "start": 1.12, "end": 1.40}
+  {"text": "left", "start": 1.12, "end": 1.40},
+  {"text": "the", "start": 1.42, "end": 1.50},
+  {"text": "world's", "start": 1.52, "end": 1.86},
+  {"text": "biggest", "start": 1.88, "end": 2.30},
+  {"text": "crypto", "start": 2.32, "end": 2.70},
+  {"text": "exchange.", "start": 2.72, "end": 3.30}
  ]
 }
 ```
@@ -99,12 +184,12 @@ Every command that reads a plan checks all of it first. A mistake is an error na
 | `**word**` | `hero`: the single standout word of a paragraph, biggest and boldest |
 | `*word*` | `weight`: what a listener must remember |
 | `_word_` | `tone`: irony, softness or contrast. A different kind of emphasis, not a weaker one |
-| `word^1.5` | Size, relative to the rest of the group. It combines with a level |
+| `word^1.5` | Size, relative to the rest of the group. It multiplies the level's size |
 | `/` | A line break, as its own word. Without one, the place effect chooses the lines |
 
 A mark can cover several words, as in `_not your keys_`. A spoken word written with a space, like `$6.3 billion`, takes markup and size as one word: `*$6.3 billion*^2`. Marking only part of it is an error. Text may differ from the spoken word in punctuation and case, and punctuation on its own, like `—`, joins the word next to it.
 
-Mark sparingly. Emphasis works when it's rare and uneven: often a quarter of the words or fewer, with `hero` at most once a paragraph. Short words of contrast and negation, like *not*, *no* and *but*, are easy to miss.
+Emphasis works when it's rare and uneven: often a quarter of the words or fewer, with `hero` at most once a paragraph, and some sentences with none.
 
 ## Presets
 
@@ -112,10 +197,10 @@ A preset sets a whole style at once. Your `look` and `defaults` then change only
 
 | Preset | Look | Effects |
 |---|---|---|
-| `plain` | The defaults below: one group at a time, in heavy capitals on a dark background | `fit`, `pop`, `fade`, `still` |
-| `gap` | 1920 by 1080, `EB Garamond` in dark ink on paper, left-aligned. `hero` is 2.4 times the size in bold, `weight` 1.5 times in bold, and `tone` 1.25 times in italic, so emphasis shows at a glance | `canvas`, `blur-in`, `rotate-shrink`, `follow` |
+| `plain` | The look settings' defaults below: one group at a time, in heavy capitals on a dark background. A plan without `preset` is `plain` | `fit`, `pop`, `fade`, `still` |
+| `gap` | 1920 by 1080, `EB Garamond` in dark ink on paper, left-aligned. `hero` is 2.4 times the size in bold, `weight` 1.5 times in bold, and `tone` 1.25 times in italic, so emphasis shows at a glance. The draft uses it | `canvas`, `blur-in`, `rotate-shrink`, `follow` |
 
-With `gap`, words build up on one page as the camera travels across it, so the `at` hints for each group are what make the layout: which side of the last group it goes on, and its turn. Without hints, each group goes below the last.
+With `gap`, words build up on one page as the camera travels across it, so the `at` hints for each group are what make the layout: which side of the last group it goes on, and its turn. A group with no hints goes below the last. After moving words between groups, run `kinetic check`, since the draft's hints were searched for the groups as they were.
 
 The camera blurs as it moves, the way a film camera does. That's automatic: a still camera costs nothing, and a moving one renders several times slower.
 
@@ -137,28 +222,11 @@ Colors are `[red, green, blue]` from 0 to 255. These are the defaults, which are
 | `ink` | [245, 245, 240] | Text color |
 | `emphasis` | See below | How each level looks |
 
-`emphasis` sets `hero`, `weight` and `tone`, each with any of `size` (relative, default 1), `bold`, `italic` and `color` (default: `ink`). A level you set replaces its default entirely. The defaults suit Archivo Black, which has no bold or italic: `hero` is 1.7 times the size in yellow, `weight` 1.35 times in yellow, and `tone` gray. A level that looks like plain text, or asks for a style the font lacks, is an error.
-
-## What to edit
-
-Do these in order of value:
-
-1. **Emphasis.** The draft's rules mark few words and miss what only meaning shows, like the image a sentence turns on. Mark what carries the point.
-2. **Groups.** Move words between groups so each reads as a unit of meaning. Start a new section where the subject changes.
-3. **Look and motion.** For example, a single word alone as its own group, larger, or a different `side` and `turn` in a group's `at` hints. After moving words between groups, run `kinetic check`, since the draft's placement was searched for the groups as they were.
-
-Don't change the timing unless you've found it wrong. It comes from the audio and is usually accurate to a few hundredths of a second.
-
-## Writing scripts
-
-- English only, with or without a script. Non-English text won't align.
-- Write what's spoken. Digits are fine (`$6.3 billion`, `2026`, `20%`, `3rd`) because they're converted to how they sound.
-- Other than that, the script doesn't need to be perfect. Ad-libs in the audio are skipped, and reworded or unspoken script words are reported in `doubtful`.
-- Sentence ends always break a group in the draft. Commas, colons and dashes encourage one.
+`emphasis` sets `hero`, `weight` and `tone`, each with any of `size` (relative, default 1), `bold`, `italic` and `color` (default: `ink`). A level you set replaces the preset's version of it entirely. Without a preset, the levels suit Archivo Black, which has no bold or italic: `hero` is 1.7 times the size in yellow, `weight` 1.35 times in yellow, and `tone` gray. A level that looks like plain text, or asks for a style the font lacks, is an error.
 
 ## Checking your work
 
-Run `kinetic check` after every edit. It takes about a second and reads the plan the way a viewer would see it:
+`kinetic check` takes about a second and reads the plan the way a viewer would see it:
 
 ```json
 {"ok": true, "clean": false,
@@ -189,4 +257,8 @@ Run `kinetic check` after every edit. It takes about a second and reads the plan
 {"ok": true, "sheet": "sheet.png", "tiles": [{"group": "sections[0].groups[0]", "at": 0.49}, {"group": "sections[0].groups[1]", "at": 3.55}]}
 ```
 
+On a sheet, look for what a check can't see: a section where every group sits the same way, emphasis that doesn't match what the voice is saying, or a hero that isn't the point.
+
 A full render of a 60-second video takes a few seconds with `plain`, and about 15 seconds with a moving camera, as in the draft.
+
+Don't change the timing unless you've found it wrong. It comes from the audio and is usually accurate to a few hundredths of a second.

@@ -54,7 +54,7 @@ kinetic render --plan talk.plan.json --out talk.mp4
 
 ### Use it with an AI agent
 
-Tell your agent to run `kinetic guide`. It prints the workflow, the plan format and how to read results. Add `--json` to any command for one machine-readable result on stdout.
+Tell your agent to run `kinetic guide`. It prints the workflow, a worked example of directing a draft, the plan format, and how to read and fix what `kinetic check` finds. The agent supplies what the tool can't: which words matter and how they group. Add `--json` to any command for one machine-readable result on stdout.
 
 ## Writing a script
 

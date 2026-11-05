@@ -62,6 +62,7 @@ The agreed direction for the next stage, partly built, is in [docs/architecture-
 | `tools/eval_emphasis.py` | By hand, for emphasis rule changes | Precision and recall of the draft's emphasis against a reference a person marked |
 | `test_guide_is_packaged_...` | With the tests | Guide missing a command, plan field, look setting, effect, parameter or hint |
 | `test_a_mistake_is_an_error_...` | With the tests | A plan mistake that's skipped instead of reported |
+| `test_every_json_example_in_the_guide_...` | With the tests | A JSON example in the guide that doesn't parse, or a plan example that doesn't load |
 | `test_shared_...` in `test_effects.py` | With the tests, on every registered effect | An effect without docs or defaults, words shown early, moving while spoken or never settling, groups that never leave, a camera losing the words |
 
 ## When changing things
