@@ -226,7 +226,7 @@ def test_frame_writes_a_png_from_an_edited_plan(tmp_path, capsys):
 def test_guide_is_packaged_and_covers_every_command_field_and_effect(capsys):
     assert main(["guide"]) == 0
     guide = capsys.readouterr().out
-    for command in ("make", "plan", "check", "render", "frame"):
+    for command in ("make", "plan", "check", "preview", "render", "frame"):
         assert f"kinetic {command}" in guide, f"kinetic {command} is missing from the guide"
     for name in [*LOOK_DEFAULTS, *LOOK_DEFAULTS["emphasis"], *GROUP_FIELDS, "sections", "words", "defaults", "emphasis"]:
         assert f"`{name}`" in guide, f"{name} is missing from the guide"

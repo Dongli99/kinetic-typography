@@ -45,7 +45,8 @@ To change the emphasis, the groups of words, the font or the motion, make a plan
 kinetic plan --audio talk.mp3 --out talk.plan.json
 # Edit talk.plan.json
 kinetic check --plan talk.plan.json                              # overlapping, clipped or too-brief words
-kinetic frame --plan talk.plan.json --at 12.5 --out check.png    # preview one moment
+kinetic preview --plan talk.plan.json --out sheet.png            # a frame per group; or clip.mp4, at half size
+kinetic frame --plan talk.plan.json --at 12.5 --out check.png    # one moment
 kinetic render --plan talk.plan.json --out talk.mp4
 ```
 
@@ -82,7 +83,6 @@ Contributing, by hand or with an agent? Start with [CLAUDE.md](CLAUDE.md).
 
 ## Roadmap
 
-- Contact sheets and quick previews
 - Motion blur, a paper look and presets
 - A better first draft without an agent
 - Custom fonts

@@ -68,6 +68,10 @@ class Plan:
         specs = _read_sections(self.sections, self.words, slots, look, treatments)
         return build(specs, slots, look, self.duration)
 
+    def group_names(self) -> list[str]:
+        """Where each group of the scene is in the plan, like "sections[0].groups[3]"."""
+        return [f"sections[{s}].groups[{g}]" for s, section in enumerate(self.sections) for g in range(len(section["groups"]))]
+
 
 # ------------------------------------------------------------------ writing
 

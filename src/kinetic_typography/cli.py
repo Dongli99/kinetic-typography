@@ -11,10 +11,10 @@ from pathlib import Path
 from . import __version__
 from .effects import describe
 from .align import align_script, decode_audio, tokenize_script
-from .check import MIN_READ, check
+from .check import MIN_READ, SETTLE, check
 from .phrases import group_phrases
 from .plan import Plan, draft_plan, load_plan, save_plan
-from .render import render_video, save_frame
+from .render import PREVIEW_SCALE, render_video, save_frame, save_sheet
 from .transcribe import transcribe
 
 
@@ -56,6 +56,12 @@ def main(argv: list[str] | None = None) -> int:
     inspect = add("check", "Find overlapping, clipped and too-brief words in a plan, and list the styles it applies.")
     inspect.add_argument("--plan", required=True, help="plan file")
 
+    preview = add("preview", "Preview a plan quickly: a contact sheet with a frame per group (.png), or a low-resolution clip (.mp4).")
+    preview.add_argument("--plan", required=True, help="plan file")
+    preview.add_argument("--out", required=True, help="contact sheet (.png) or clip (.mp4) to write")
+    preview.add_argument("--from", dest="start", type=float, default=0.0, help="start time in seconds (default: 0)")
+    preview.add_argument("--to", dest="end", type=float, help="end time in seconds (default: the end)")
+
     commands.add_parser("guide", help="Print the guide for AI agents.")
 
     args = parser.parse_args(argv)
@@ -65,7 +71,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     try:
-        result = {"make": run_make, "plan": run_plan, "render": run_render, "frame": run_frame, "check": run_check}[args.command](args)
+        result = {"make": run_make, "plan": run_plan, "render": run_render, "frame": run_frame, "check": run_check, "preview": run_preview}[args.command](args)
     except (OSError, ValueError, RuntimeError) as error:
         if args.json:
             print(json.dumps({"ok": False, "error": str(error)}))
@@ -105,11 +111,32 @@ def run_frame(args: argparse.Namespace) -> dict:
 
 def run_check(args: argparse.Namespace) -> dict:
     plan = load_plan(args.plan)
-    names = [f"sections[{s}].groups[{g}]" for s, section in enumerate(plan.sections) for g in range(len(section["groups"]))]
-    result = check(plan.make_scene(), names)
+    result = check(plan.make_scene(), plan.group_names())
     if not args.json:
         _print_check(result)
     return result
+
+
+def run_preview(args: argparse.Namespace) -> dict:
+    kind = Path(args.out).suffix.lower()
+    if kind not in (".png", ".mp4"):
+        raise ValueError(f"--out: expected a .png contact sheet or an .mp4 clip, got {args.out}")
+    plan = _load_checked_plan(args.plan) if kind == ".mp4" else load_plan(args.plan)
+    end = plan.duration if args.end is None else min(args.end, plan.duration)
+    if not 0 <= args.start < end:
+        raise ValueError(f"--from and --to: expected 0 <= from < to <= {plan.duration}, got {args.start} and {end}")
+    scene = plan.make_scene()
+    if kind == ".mp4":
+        _render(plan, args.out, PREVIEW_SCALE, args.start, end)
+        return {"clip": args.out, "from": args.start, "to": round(end, 3), "scale": PREVIEW_SCALE}
+    # Each group just after its last word lands, when all of it shows.
+    tiles = [(name, round(min(g.words[-1].start + SETTLE, plan.duration), 2)) for g, name in zip(scene.groups, plan.group_names())]
+    tiles = [(name, t) for name, t in tiles if args.start <= t <= end]
+    if not tiles:
+        raise ValueError(f"No group finishes landing between {args.start}s and {end}s")
+    save_sheet(scene, tiles, args.out)
+    print(f"Wrote {args.out}", file=sys.stderr)
+    return {"sheet": args.out, "tiles": [{"group": name, "at": t} for name, t in tiles]}
 
 
 def _print_check(result: dict) -> None:
@@ -169,7 +196,7 @@ def _load_checked_plan(path: str) -> Plan:
     return plan
 
 
-def _render(plan: Plan, out: str) -> None:
+def _render(plan: Plan, out: str, scale: float = 1.0, start: float = 0.0, end: float | None = None) -> None:
     _require_ffmpeg()
     scene = plan.make_scene()
 
@@ -177,7 +204,7 @@ def _render(plan: Plan, out: str) -> None:
         if done == total or done % scene.look.fps == 0:
             print(f"\rRendering {done}/{total} frames", end="", file=sys.stderr, flush=True)
 
-    render_video(scene, plan.audio, out, show_progress)
+    render_video(scene, plan.audio, out, show_progress, scale, start, end)
     print(f"\nWrote {out}", file=sys.stderr)
 
 

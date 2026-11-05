@@ -8,6 +8,7 @@
 kinetic plan --audio talk.mp3 --out talk.plan.json --json
 # Edit talk.plan.json to suit the content.
 kinetic check --plan talk.plan.json --json
+kinetic preview --plan talk.plan.json --out sheet.png --json
 kinetic frame --plan talk.plan.json --at 12.5 --out check.png --json
 kinetic render --plan talk.plan.json --out talk.mp4 --json
 ```
@@ -148,4 +149,18 @@ Run `kinetic check` after every edit. It takes about a second and reads the plan
 | `brief` | A word is readable for `shown` seconds, under 0.3, before its group leaves | Move it into the next group, or give its group a later exit |
 | `styles` | Every word with a level or a size, as it was applied, and the count at each level | Compare it with what you meant to mark |
 
-`clean` is true when there are no overlaps, clipped words or brief words. The check can't judge taste, so look at a few frames with `kinetic frame` too, especially where groups turn or the camera travels. Rendering a 60-second video takes a few seconds.
+`clean` is true when there are no overlaps, clipped words or brief words. The check can't judge taste, so look too:
+
+| Command | Shows | Takes |
+|---|---|---|
+| `kinetic preview --out sheet.png` | A contact sheet: one small frame per group, just after its last word lands, labelled with the group and time | Under a second |
+| `kinetic preview --out clip.mp4` | A clip at half size, with its audio, to judge motion and pace | About a second per 5 seconds of video |
+| `kinetic frame --at 12.5` | One moment at full size | Under a second |
+
+`preview` takes `--from` and `--to` in seconds to cover part of the video. A sheet of a whole video has a tile for every group, so use a range of 20 or 30 seconds to see each tile clearly. The result lists each tile's group and time:
+
+```json
+{"ok": true, "sheet": "sheet.png", "tiles": [{"group": "sections[0].groups[0]", "at": 0.49}, {"group": "sections[0].groups[1]", "at": 3.55}]}
+```
+
+A full render of a 60-second video takes a few seconds.
