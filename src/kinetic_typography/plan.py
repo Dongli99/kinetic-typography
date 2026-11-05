@@ -264,7 +264,7 @@ def _read_sections(sections: list, words: list[Word], slots: dict, look: Look, t
                 treatment = treatments[level]
                 text = text.upper() if treatments["upper"] else text
                 shown.append(WordSpec(text, word.start, word.end, treatment["size"] * size, tuple(treatment["color"]),
-                                      treatment["bold"], treatment["italic"]))  # fmt: skip
+                                      treatment["bold"], treatment["italic"], level))  # fmt: skip
             specs.append(
                 GroupSpec(
                     tuple(shown), lines if len(lines) > 1 else None, group.get("align", treatments["align"]),

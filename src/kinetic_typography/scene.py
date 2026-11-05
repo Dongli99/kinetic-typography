@@ -53,10 +53,10 @@ class Node:
         keys.append((t, float(value), ease))
         keys.sort(key=lambda k: k[0])
 
-    def get(self, prop: str, t: float) -> float:
-        """The value at time t, held at the first and last keys outside them."""
+    def get(self, prop: str, t: float | None) -> float:
+        """The value at time t, held at the first and last keys outside them. At rest if t is None."""
         keys = self.tracks.get(prop)
-        if not keys:
+        if not keys or t is None:
             return self.base[prop]
         if t <= keys[0][0]:
             return keys[0][1]
@@ -182,6 +182,7 @@ class WordSpec:
     color: tuple[int, int, int] = (245, 245, 240)
     bold: bool = False
     italic: bool = False
+    level: str | None = None  # the emphasis level it was marked with
 
 
 @dataclass(frozen=True)
@@ -208,8 +209,8 @@ class Word(Node):
         self.font: skia.Font | None = None
         self.width = self.top = self.bottom = 0.0
 
-    def corners(self, t: float) -> list[tuple[float, float]]:
-        """The word's ink box at time t, in world space."""
+    def corners(self, t: float | None) -> list[tuple[float, float]]:
+        """The word's ink box at time t, or at rest if t is None, in world space."""
         m = self.world_matrix(t)
         half = self.width / 2
         points = [m.mapXY(x, y) for x, y in ((-half, -self.top), (half, -self.top), (half, self.bottom), (-half, self.bottom))]

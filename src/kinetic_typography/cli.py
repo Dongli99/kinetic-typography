@@ -11,6 +11,7 @@ from pathlib import Path
 from . import __version__
 from .effects import describe
 from .align import align_script, decode_audio, tokenize_script
+from .check import MIN_READ, check
 from .phrases import group_phrases
 from .plan import Plan, draft_plan, load_plan, save_plan
 from .render import render_video, save_frame
@@ -52,6 +53,9 @@ def main(argv: list[str] | None = None) -> int:
     frame.add_argument("--at", required=True, type=float, help="time in seconds")
     frame.add_argument("--out", required=True, help="image to write (.png)")
 
+    inspect = add("check", "Find overlapping, clipped and too-brief words in a plan, and list the styles it applies.")
+    inspect.add_argument("--plan", required=True, help="plan file")
+
     commands.add_parser("guide", help="Print the guide for AI agents.")
 
     args = parser.parse_args(argv)
@@ -61,7 +65,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     try:
-        result = {"make": run_make, "plan": run_plan, "render": run_render, "frame": run_frame}[args.command](args)
+        result = {"make": run_make, "plan": run_plan, "render": run_render, "frame": run_frame, "check": run_check}[args.command](args)
     except (OSError, ValueError, RuntimeError) as error:
         if args.json:
             print(json.dumps({"ok": False, "error": str(error)}))
@@ -97,6 +101,33 @@ def run_frame(args: argparse.Namespace) -> dict:
     plan = load_plan(args.plan)
     save_frame(plan.make_scene(), args.at, args.out)
     return {"frame": args.out, "at": args.at}
+
+
+def run_check(args: argparse.Namespace) -> dict:
+    plan = load_plan(args.plan)
+    names = [f"sections[{s}].groups[{g}]" for s, section in enumerate(plan.sections) for g in range(len(section["groups"]))]
+    result = check(plan.make_scene(), names)
+    if not args.json:
+        _print_check(result)
+    return result
+
+
+def _print_check(result: dict) -> None:
+    lines = []
+    for item in result["overlaps"]:
+        lines.append(f"overlap  {item['group']}: {item['word']!r} at {item['at']}s lands on {item['on_word']!r} of {item['lands_on']}")
+    for item in result["clipped"]:
+        lines.append(f"clipped  {item['group']}: {item['word']!r} is {item['by']}px past the {item['edge']} edge as it lands at {item['at']}s")
+    for item in result["brief"]:
+        lines.append(f"brief    {item['group']}: {item['word']!r} at {item['at']}s shows for {item['shown']}s, under {MIN_READ}s")
+    styles = result["styles"]
+    for item in styles["styled"]:
+        look = ", ".join(filter(None, [item["level"], f"size {item['size']}", item["bold"] and "bold", item["italic"] and "italic"]))
+        lines.append(f"style    {item['group']}: {item['word']!r}: {look}")
+    counts = ", ".join(f"{styles[level]} {level}" for level in ("hero", "weight", "tone"))
+    problems = sum(len(result[key]) for key in ("overlaps", "clipped", "brief"))
+    lines.append(f"{styles['words']} words: {counts}. " + ("Clean." if result["clean"] else f"{problems} problems."))
+    print("\n".join(lines))
 
 
 def _build_plan(audio: str, script: str | None) -> tuple[Plan, dict]:

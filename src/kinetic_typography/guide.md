@@ -7,6 +7,7 @@
 ```bash
 kinetic plan --audio talk.mp3 --out talk.plan.json --json
 # Edit talk.plan.json to suit the content.
+kinetic check --plan talk.plan.json --json
 kinetic frame --plan talk.plan.json --at 12.5 --out check.png --json
 kinetic render --plan talk.plan.json --out talk.mp4 --json
 ```
@@ -130,4 +131,21 @@ Don't change the timing unless you've found it wrong. It comes from the audio an
 
 ## Checking your work
 
-Run `kinetic frame` on a few moments before a full render. It's quick, and you can look at the PNG. Rendering a 60-second video takes a few seconds. Nothing yet checks that words stay inside the frame or don't land on each other, so look at frames where groups turn or move.
+Run `kinetic check` after every edit. It takes about a second and reads the plan the way a viewer would see it:
+
+```json
+{"ok": true, "clean": false,
+ "overlaps": [{"group": "sections[1].groups[2]", "word": "minutes", "at": 18.2, "lands_on": "sections[1].groups[0]", "on_word": "WIRED"}],
+ "clipped": [{"group": "sections[2].groups[1]", "word": "vanished", "at": 16.14, "edge": "bottom", "by": 454}],
+ "brief": [{"group": "sections[0].groups[0]", "word": "left", "at": 2.02, "shown": 0.1}],
+ "styles": {"words": 157, "hero": 1, "weight": 29, "tone": 23, "styled": [{"group": "sections[0].groups[0]", "word": "$6.3 billion", "at": 0.24, "level": "hero", "size": 2.4, "bold": true, "italic": false, "color": [30, 24, 20]}]}}
+```
+
+| Finding | Means | Usual fix |
+|---|---|---|
+| `overlaps` | A word lands where a word of an earlier group is still showing. One per pair of groups | A different `side`, more `gap`, or an earlier exit for the older group with its `retire` |
+| `clipped` | A word is past the frame edge 0.25 seconds after it starts, by `by` pixels | With `follow`, frame fewer groups with `with`, lower `zoom`, or `cut`. With `canvas`, a different `side` or `turn` |
+| `brief` | A word is readable for `shown` seconds, under 0.3, before its group leaves | Move it into the next group, or give its group a later exit |
+| `styles` | Every word with a level or a size, as it was applied, and the count at each level | Compare it with what you meant to mark |
+
+`clean` is true when there are no overlaps, clipped words or brief words. The check can't judge taste, so look at a few frames with `kinetic frame` too, especially where groups turn or the camera travels. Rendering a 60-second video takes a few seconds.

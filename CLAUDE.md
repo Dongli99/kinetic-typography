@@ -35,6 +35,7 @@ So a new creative feature is a new plan field that the renderer honors, with a s
 | `scene.py` | The tree of world, groups and words, whose properties change over time through keys |
 | `effects.py` | The registry of `place`, `arrive`, `retire` and `camera` effects, which write those keys. It validates choices and hints, and writes the guide's effect reference |
 | `build.py` | Groups plus a choice per slot, made into a scene |
+| `check.py` | What a viewer would see is wrong: overlaps, clipped and too-brief words. It also reports the styles applied |
 | `render.py` | Skia frames, piped to ffmpeg. It walks the tree and knows no effect by name |
 | `guide.md` | What a user's agent reads, via `kinetic guide`, followed by the generated effect reference |
 
