@@ -5,7 +5,7 @@
 ## Workflow
 
 ```bash
-kinetic plan --audio talk.mp3 --out talk.plan.json --json
+kinetic plan --audio talk.mp3 --out talk.plan.json --json    # add --script talk.txt if you have the words
 kinetic analyze --plan talk.plan.json --json    # optional: how the voice stressed each word
 # Read the draft, then edit talk.plan.json: emphasis first, then groups, then placement.
 kinetic check --plan talk.plan.json --json
@@ -118,6 +118,7 @@ Writing a script:
 
 - English only, with or without a script. Non-English text won't align.
 - Write what's spoken. Digits are fine (`$6.3 billion`, `2026`, `20%`, `3rd`) because they're converted to how they sound.
+- Numbers are shown as digits either way. "Six point three billion dollars" in the script, or in the audio, becomes one word in the plan, `$6.3 billion`, timed across all of its spoken words. That's why the plan can have fewer words than the script, and it isn't reported in `doubtful`.
 - Other than that, the script doesn't need to be perfect. Ad-libs in the audio are skipped, and reworded or unspoken script words are reported in `doubtful`.
 - Sentence ends always end a group in the draft. Commas, colons and dashes encourage a break.
 
@@ -268,7 +269,7 @@ Colors are `[red, green, blue]` from 0 to 255. These are the defaults, which are
 {"ok": true, "sheet": "sheet.png", "tiles": [{"group": "sections[0].groups[0]", "at": 0.49}, {"group": "sections[0].groups[1]", "at": 3.55}]}
 ```
 
-On a sheet, look for what a check can't see: a section where every group sits the same way, emphasis that doesn't match what the voice is saying, or a hero that isn't the point.
+A tile can show an earlier group cut off at the edge, because the camera is already travelling to the newest group. That's expected: `check` measures each word only as it lands. On a sheet, look for what a check can't see: a section where every group sits the same way, emphasis that doesn't match what the voice is saying, or a hero that isn't the point.
 
 A full render of a 60-second video takes a few seconds with `plain`, and about 15 seconds with a moving camera, as in the draft.
 

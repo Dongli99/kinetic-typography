@@ -183,6 +183,22 @@ Done when:
 - A person watches that video once.
 - The no-agent default is acceptable on a recording it hasn't seen.
 
+### Stage 1 agent test
+
+A fresh Haiku agent got only `kinetic guide`, the narration's audio and its script, 2026-11-04.
+
+| Measure | Prototype test | Stage 1 |
+|---|---|---|
+| Finished | Yes, 0 overlaps | Yes, `check` clean |
+| Effort | 4 checks, 3 sheets | 3 checks, 1 sheet, 9 tool calls. It never read the code |
+| Cost | About 63,000 tokens, 2 minutes | 67,042 tokens, 90 seconds, render included |
+| Emphasis against the reference | Not scored | Precision 0.76, recall 0.51, 16% of words marked |
+| Silent failures | Markup dropped without an error | None |
+
+**The emphasis score is inflated.** The guide's worked example is drawn from this same narration, and the agent said it borrowed several edits from it. That passes the "no silent failures" and "clean check" parts of the done-when list, but the emphasis score needs a narration the guide doesn't contain, with its own reference. The agent kept the draft's groups and placement, so the layout is the draft's.
+
+It found three gaps in the guide, fixed the same day: the workflow didn't show `--script`, nothing said spoken numbers become one digit word such as `$6.3 billion`, and earlier groups cut off at the edge of a sheet's tile looked like a fault.
+
 ## Open risks
 
 - **Automatic placement** may look random no matter how much code it gets. It's the biggest risk.
