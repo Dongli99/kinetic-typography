@@ -5,7 +5,7 @@
 Turn a voiceover into a kinetic typography video. Words build up on a page as they're spoken, while a camera travels across it.
 
 - **Input:** an audio file (`.mp3` or `.wav`) in English, plus an optional script for when the audio is unclear
-- **Output:** a 1920x1080 `.mp4` with the animated words and your audio
+- **Output:** an `.mp4` with the animated words and your audio, at 1920x1080 or any size you choose
 - **Made for agents too:** every creative decision is in a JSON plan file that you or your AI agent can edit
 
 > **The main limitation: emphasis needs understanding.** Which words stand out decides how good the video is, and only a person or a capable AI model reading the content can choose them well. The tool can't. Without that, it guesses with rules: on a narration that a person marked, 63% of its guesses were right and it found about a third of their words. So the one-step video is a rough draft. For a good one, mark the emphasis yourself or have an agent do it.
@@ -40,6 +40,22 @@ Words worked out from audio can be misheard, and you'll be told about ones the t
 ```bash
 kinetic make --audio talk.mp3 --script talk.txt --out talk.mp4
 ```
+
+For another shape, give its size in pixels. Lines get shorter in a taller frame, so the words fill it:
+
+```bash
+kinetic make --audio talk.mp3 --size 1080x1920 --out talk.mp4    # vertical, for Shorts, Reels and TikTok
+```
+
+| Size | For |
+|---|---|
+| `1920x1080` | Landscape 16:9, the default: YouTube and most screens |
+| `1080x1920` | Vertical 9:16: Shorts, Reels and TikTok |
+| `1080x1350` | Portrait 4:5: Instagram and Facebook feeds |
+| `1080x1080` | Square 1:1 |
+| `1280x720`, `3840x2160` | Landscape 16:9 at 720p or 4K |
+
+Any size from 16 to 8192 pixels a side works.
 
 ### Adjust the result
 

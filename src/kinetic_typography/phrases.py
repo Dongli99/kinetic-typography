@@ -13,7 +13,7 @@ from .spoken import MAGNITUDES, letters_only, parse_number_words
 # Cost of a line, and of a group of lines, by its number of words. Their keys set the most words.
 LINE_SIZES = {1: 1.5, 2: 0.3, 3: 0.0, 4: 0.0, 5: 0.6}
 GROUP_SIZES = {1: 1.5, 2: 0.8, 3: 0.4, 4: 0.1, 5: 0.0, 6: 0.0, 7: 0.2, 8: 0.6}
-MAX_CHARS = 30  # in a line
+MAX_CHARS = 30  # in a line, for a 16:9 frame
 CLOSING_MARKS = "\"'”’)]"
 SENTENCE_MARKS = (".", "!", "?", "…")
 CLAUSE_MARKS = (";", ":", "—")
@@ -110,16 +110,21 @@ def _final_mark(word: Word) -> str:
     return word.text.rstrip(CLOSING_MARKS)[-1:]
 
 
-def group_phrases(words: list[Word]) -> list[Phrase]:
-    """Groups of words in sections, with their lines and each word's emphasis level."""
+def line_chars(width: int, height: int) -> int:
+    """The longest line for a frame's shape: shorter in a tall frame, so text fills it rather than a band."""
+    return round(min(40, max(12, MAX_CHARS * ((width / height) / (16 / 9)) ** 0.5)))
+
+
+def group_phrases(words: list[Word], chars: int = MAX_CHARS) -> list[Phrase]:
+    """Groups of words in sections, with their lines and each word's emphasis level. chars is the longest line."""
     words = merge_numbers(words)
     phrases = []
     seen: set[str] = set()
     for number, section in enumerate(_split_sections(_split_sentences(words))):
         levels = _pick_emphasis(section, seen)
         for sentence in section:
-            for group in _best_split(sentence, GROUP_SIZES, 2 * MAX_CHARS):
-                lines = tuple(len(line) for line in _best_split(group, LINE_SIZES, MAX_CHARS))
+            for group in _best_split(sentence, GROUP_SIZES, 2 * chars):
+                lines = tuple(len(line) for line in _best_split(group, LINE_SIZES, chars))
                 first = number > 0 and group[0] is section[0][0]
                 phrases.append(Phrase(tuple(group), lines, tuple(levels.get(id(w)) for w in group), first))
     return phrases

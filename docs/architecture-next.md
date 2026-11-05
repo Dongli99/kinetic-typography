@@ -184,6 +184,12 @@ Done when:
 - A person watches that video once.
 - The no-agent default is acceptable on a recording it hasn't seen.
 
+### Frame size
+
+Added 2026-11-04. `make` and `plan` take `--size`, which the draft writes into the plan's `look`. It's a flag although it shapes the layout, because it's set by where the video goes, like the output file, and the draft can only shape lines for a frame it knows. A line's limit is 30 characters at 16:9, scaled by the square root of the frame's shape against 16:9: 22 square, 20 at 4:5 and 17 at 9:16. The 1920x1080 draft rendered at 9:16 passed `check` but sat in a band across the middle of the frame.
+
+Drafting for 9:16 found a bug in the search: the camera leaving for a group can clip the last word of the group before, which the search didn't look at. It now does, and when no spot avoids it, as in very quick speech, it prefers that to an overlap. Both recordings now draft clean at 1080x1920, 1080x1350, 1080x1080, 1920x1080, 1280x720 and 3840x2160.
+
 ### Stage 1 agent test
 
 A fresh Haiku agent got only `kinetic guide`, the narration's audio and its script, 2026-11-04.

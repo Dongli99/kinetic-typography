@@ -16,15 +16,19 @@ SECTION_GAP = 400.0  # pixels between sections, so the camera travels
 TURN = 90.0
 
 
-def draft_plan(audio: str, duration: float, phrases: list[Phrase]) -> Plan:
-    """A section per run of phrases, a group per phrase, its words' emphasis as markup, and where each group sits."""
+def draft_plan(audio: str, duration: float, phrases: list[Phrase], size: tuple[int, int] | None = None) -> Plan:
+    """A section per run of phrases, a group per phrase, its words' emphasis as markup, and where each group sits.
+
+    size is the frame's width and height, when it isn't the preset's.
+    """
     words, sections = [], []
     for phrase in phrases:
         words += phrase.words
         if phrase.section or not sections:
             sections.append({"groups": []})
         sections[-1]["groups"].append({"text": _text(phrase)})
-    plan = Plan(audio, duration, words, sections, defaults={}, preset=PRESET)
+    look = {"width": size[0], "height": size[1]} if size else {}
+    plan = Plan(audio, duration, words, sections, look=look, defaults={}, preset=PRESET)
     _place(plan)
     return plan
 
@@ -41,7 +45,8 @@ def _text(phrase: Phrase) -> str:
 
 
 def _place(plan: Plan) -> None:
-    """Give each group the first spot on its list where it lands on no word still showing and isn't clipped."""
+    """Give each group the first spot on its list where it lands on no word still showing and nothing is clipped,
+    or failing that, the least faulty one. `kinetic check` reports whatever is left."""
     groups = [(s, g) for s, section in enumerate(plan.sections) for g in range(len(section["groups"]))]
     turned = 0  # the sign of the last turn, so turns alternate instead of spiralling into older words
     for index, (s, g) in enumerate(groups):
@@ -49,14 +54,30 @@ def _place(plan: Plan) -> None:
             continue
         group = plan.sections[s]["groups"][g]
         spots = _spots(g, turned, len(group["text"].split()) == 1)
+        best = None
         for spot in spots:
-            group["at"] = spot
-            scene = plan.make_scene()
-            if not lands_on(scene, index) and not any(clipped(scene, word) for word in scene.groups[index].words):
+            fault = _fault(plan, group, index, spot)
+            if best is None or fault < best[0]:
+                best = (fault, spot)
+            if fault == 0:
                 break
-        else:
-            group["at"] = spots[0]  # nowhere is clear: `kinetic check` will report it
+        group["at"] = best[1]
         turned = group["at"].get("turn", 0) or turned
+
+
+def _fault(plan: Plan, group: dict, index: int, spot: dict) -> int:
+    """How bad a spot is: 0 if clear, 1 if only the group before is clipped, 2 if this group is, 3 if it overlaps.
+
+    The camera leaving for this group can clip the last words of the one before, and in quick speech no spot
+    avoids it, so that counts least. Words landing on words always count most.
+    """
+    group["at"] = spot
+    scene = plan.make_scene()
+    if lands_on(scene, index):
+        return 3
+    if any(clipped(scene, word) for word in scene.groups[index].words):
+        return 2
+    return 1 if any(clipped(scene, word) for word in scene.groups[index - 1].words) else 0
 
 
 def _spots(g: int, turned: float, single: bool) -> list[dict]:
@@ -75,5 +96,6 @@ def _spots(g: int, turned: float, single: bool) -> list[dict]:
     else:
         preferred = [below, across]
     others = [{"side": "below", "align": "right"}, {"side": "right", "turn": -turn}, {"side": "left", "turn": turn},
-              {"side": "below", "gap": 200.0}, {"side": "right", "gap": 400.0}, {"side": "below", "gap": 600.0}]  # fmt: skip
+              {"side": "below", "gap": 200.0}, {"side": "right", "gap": 400.0}, {"side": "below", "gap": 600.0},
+              {"side": "above", "gap": 600.0}, {"side": "left", "gap": 800.0}, {"side": "right", "gap": 1200.0}]  # fmt: skip
     return preferred + [spot for spot in others if spot not in preferred]

@@ -3,6 +3,7 @@
 import argparse
 import dataclasses
 import json
+import re
 import shutil
 import sys
 from importlib.resources import files
@@ -12,9 +13,9 @@ from . import __version__
 from .effects import describe
 from .align import align_script, decode_audio, tokenize_script
 from .check import MIN_READ, SETTLE, check
-from .phrases import group_phrases
-from .draft import draft_plan
-from .plan import Plan, load_plan, save_plan
+from .phrases import group_phrases, line_chars
+from .draft import PRESET, draft_plan
+from .plan import PRESETS, Plan, load_plan, save_plan
 from .render import PREVIEW_SCALE, render_video, save_frame, save_sheet
 from .transcribe import transcribe
 from .voice import stress
@@ -34,17 +35,20 @@ def main(argv: list[str] | None = None) -> int:
         command.add_argument("--json", action="store_true", help="print one JSON result to stdout")
         return command
 
+    size_help = "frame WIDTHxHEIGHT in pixels, such as 1080x1920 for vertical video (default: 1920x1080)"
     script_help = "text file with the words being spoken, for when the audio is unclear (default: work them out from the audio)"
 
     make = add("make", "Go straight from audio to a video.")
     make.add_argument("--audio", required=True, help="voiceover file (.mp3 or .wav)")
     make.add_argument("--script", help=script_help)
     make.add_argument("--out", default="output.mp4", help="output video (default: output.mp4)")
+    make.add_argument("--size", type=_size, help=size_help)
 
     plan = add("plan", "Find the words and their timing in the audio, and write an editable plan file.")
     plan.add_argument("--audio", required=True, help="voiceover file (.mp3 or .wav)")
     plan.add_argument("--script", help=script_help)
     plan.add_argument("--out", required=True, help="plan file to write (.json)")
+    plan.add_argument("--size", type=_size, help=size_help)
 
     render = add("render", "Render a plan file to a video.")
     render.add_argument("--plan", required=True, help="plan file")
@@ -90,13 +94,13 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def run_make(args: argparse.Namespace) -> dict:
-    plan, summary = _build_plan(args.audio, args.script)
+    plan, summary = _build_plan(args.audio, args.script, args.size)
     _render(plan, args.out)
     return {"video": args.out, **summary}
 
 
 def run_plan(args: argparse.Namespace) -> dict:
-    plan, summary = _build_plan(args.audio, args.script)
+    plan, summary = _build_plan(args.audio, args.script, args.size)
     save_plan(plan, args.out)
     print(f"Wrote {args.out}", file=sys.stderr)
     return {"plan": args.out, **summary}
@@ -173,7 +177,14 @@ def _print_check(result: dict) -> None:
     print("\n".join(lines))
 
 
-def _build_plan(audio: str, script: str | None) -> tuple[Plan, dict]:
+def _size(text: str) -> tuple[int, int]:
+    match = re.fullmatch(r"(\d+)[xX](\d+)", text.strip())
+    if not match or not all(16 <= int(n) <= 8192 for n in match.groups()):
+        raise argparse.ArgumentTypeError(f"expected WIDTHxHEIGHT from 16 to 8192 pixels, like 1080x1920, got {text!r}")
+    return int(match.group(1)), int(match.group(2))
+
+
+def _build_plan(audio: str, script: str | None, size: tuple[int, int] | None = None) -> tuple[Plan, dict]:
     _require_ffmpeg()
     for path in (audio, script):
         if path and not Path(path).is_file():
@@ -194,7 +205,8 @@ def _build_plan(audio: str, script: str | None) -> tuple[Plan, dict]:
     doubtful = unsure + alignment.doubtful
     if doubtful:
         print(f"Check these words, which the audio barely supports: {', '.join(doubtful)}", file=sys.stderr)
-    plan = draft_plan(audio, alignment.duration, group_phrases(alignment.words))
+    width, height = size or (PRESETS[PRESET]["look"]["width"], PRESETS[PRESET]["look"]["height"])
+    plan = draft_plan(audio, alignment.duration, group_phrases(alignment.words, line_chars(width, height)), size)
     print(
         "Emphasis was only guessed by rules, which can't read meaning: they find about a third of what a person "
         "would mark. For a good video, a person or a capable AI model should mark it in the plan. See `kinetic guide`.",
@@ -204,6 +216,7 @@ def _build_plan(audio: str, script: str | None) -> tuple[Plan, dict]:
         "words_from": "script" if script else "audio",
         "emphasis_from": "rules",
         "duration": round(plan.duration, 3),
+        "size": [width, height],
         "sections": len(plan.sections),
         "groups": len(plan.group_names()),
         "confidence": round(alignment.confidence, 2),

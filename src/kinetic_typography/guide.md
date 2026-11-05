@@ -20,13 +20,27 @@ Run `check` after every edit and fix what it finds. Look at a `preview` sheet be
 
 `kinetic make --audio talk.mp3 --out talk.mp4 --json` does plan and render in one step, with no edits. Its emphasis is guessed by rules, so use it when a rough video is enough.
 
+## Frame size
+
+`make` and `plan` take `--size WIDTHxHEIGHT`, which the draft writes into the plan's `look` as `width` and `height`. Set it when drafting, because the draft shapes its lines for the frame: up to 30 characters at 16:9, 22 square and 17 at 9:16. Any size from 16 to 8192 pixels a side works. Common ones:
+
+| Size | For |
+|---|---|
+| `1920x1080` | Landscape 16:9, the default: YouTube and most screens |
+| `1080x1920` | Vertical 9:16: Shorts, Reels and TikTok |
+| `1080x1350` | Portrait 4:5: Instagram and Facebook feeds |
+| `1080x1080` | Square 1:1 |
+| `1280x720`, `3840x2160` | Landscape 16:9 at 720p or 4K |
+
+To change the size of a plan already drafted, edit `look.width` and `look.height` and run `kinetic check`. The layout still works, but its lines were shaped for the old frame, so a new draft at the right size fits better.
+
 ## The draft
 
 `kinetic plan` writes a complete first draft that `check` passes:
 
 - **Sections** start at a pause of 0.7 seconds or more between sentences, once a section has 12 words.
-- **Groups** are clauses of up to 8 words, set in lines of up to 5, breaking where the punctuation and pauses suggest.
-- **Placement** uses the `gap` preset. Each group gets `at` hints from a rule: mostly below the last, every third turned across it, and a turned page with a 400-pixel gap at each section. Where a spot would land on words still showing, or clip, the next one on the group's list is used.
+- **Groups** are clauses of up to 8 words, set in lines of up to 5 words and a length that suits the frame, breaking where the punctuation and pauses suggest.
+- **Placement** uses the `gap` preset. Each group gets `at` hints from a rule: mostly below the last, every third turned across it, and a turned page with a 400-pixel gap at each section. Where a spot would land on words still showing, or leave this group or the end of the one before out of frame, the next one on the group's list is used.
 - **Emphasis** comes from rules, and the result says so with `"emphasis_from": "rules"`. Negations like *not* and *never* are `tone`. Numbers, sentence ends, names and long words score toward `weight`, less if said before, and a section's best-scoring word is its `hero`. It marks about one word in eight. On a narration that a person marked, 63% of its marks were right, and it found 32% of theirs. The rest needs meaning, which is your part.
 
 ## A worked example
@@ -129,7 +143,7 @@ Writing a script:
 With `--json`, stdout carries exactly one JSON object and progress goes to stderr. Exit code 0 means success and 1 means failure.
 
 ```json
-{"ok": true, "plan": "talk.plan.json", "words_from": "audio", "emphasis_from": "rules", "duration": 60.5, "sections": 6, "groups": 41, "confidence": -0.06, "doubtful": []}
+{"ok": true, "plan": "talk.plan.json", "words_from": "audio", "emphasis_from": "rules", "duration": 60.5, "size": [1920, 1080], "sections": 6, "groups": 41, "confidence": -0.06, "doubtful": []}
 {"ok": false, "error": "sections[0].groups[3].text: 'lift' doesn't match the next spoken word, 'left' (words[12] at 4.10s)"}
 ```
 

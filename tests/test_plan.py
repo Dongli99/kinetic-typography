@@ -14,7 +14,7 @@ from kinetic_typography import cli
 from kinetic_typography.cli import main
 from kinetic_typography.effects import EFFECTS, HINTS, SLOTS, parameters
 from kinetic_typography.model import Phrase, Word
-from kinetic_typography.phrases import group_phrases
+from kinetic_typography.phrases import MAX_CHARS, group_phrases, line_chars
 from kinetic_typography.draft import draft_plan
 from kinetic_typography.plan import GROUP_FIELDS, LOOK_DEFAULTS, PRESETS, PlanError, load_plan, save_plan
 from kinetic_typography.render import FrameRenderer
@@ -82,15 +82,21 @@ def test_a_draft_is_on_the_gap_canvas_with_emphasis_seen_at_a_glance():
     assert marked and all(w.spec.size > 1.2 and (w.spec.bold or w.spec.italic) for w in marked)
 
 
-def test_drafted_groups_land_clear_of_words_still_showing_and_inside_the_frame():
+@pytest.mark.parametrize("size", [None, (1080, 1920), (1080, 1350), (1080, 1080), (3840, 2160)])
+@pytest.mark.parametrize("pace", [0.3, 0.18])  # seconds a word; quick speech makes the camera leave early
+def test_drafted_groups_land_clear_of_words_still_showing_and_inside_the_frame(size, pace):
     script = """$6.3 billion left the world's biggest crypto exchange in twenty minutes. How do you rob a vault?
     The comforting story: your money sits in a vault, offline, untouchable. This crew took twenty minutes.
     Picture a shop till, cash out front. This money sat in the online version: a hot wallet, always connected.
     Binance says it began with a compromised engineer's laptop. One copied key opened tills on ten chains."""
-    plan = draft_plan("talk.wav", 30.0, group_phrases(timed(script.split(), 0.3)))
+    chars = line_chars(*size) if size else MAX_CHARS
+    plan = draft_plan("talk.wav", 30.0, group_phrases(timed(script.split(), pace), chars), size)
+    assert plan.make_scene().look.width == (size or (1920,))[0]
     found = check(plan.make_scene(), plan.group_names())
     assert len(plan.group_names()) > 8 and sum("turn" in g.get("at", {}) for s in plan.sections for g in s["groups"]) > 1
-    assert not found["overlaps"] and not found["clipped"], found
+    assert not found["overlaps"], found
+    # In quick speech the camera can't stay on a group's last word, so only the overlaps are certain to clear.
+    assert pace < 0.3 or not found["clipped"], found
 
 
 def test_a_version_1_plan_is_refused_with_the_way_forward(tmp_path):
@@ -283,6 +289,30 @@ def test_analyze_writes_each_words_stress_into_the_plan_and_nothing_else(tmp_pat
     assert sorted(w.stress for w in after.words)[::len(after.words) - 1] == [0.0, 1.0]
     assert [(w.text, w.start, w.end) for w in after.words] == [(w.text, w.start, w.end) for w in before.words]
     assert after.sections == before.sections and result["words"] == len(SPOKEN) and result["most_stressed"]
+
+
+# A recording's opening, as timed: the next group starts 0.2 seconds after "left".
+OPENING = [("$6.3 billion", 0.24, 1.982), ("left", 2.022, 2.182), ("the", 2.222, 2.302), ("world's", 2.322, 2.583),
+           ("biggest", 2.643, 2.903), ("crypto", 2.963, 3.223), ("exchange", 3.303, 3.664), ("in", 3.744, 3.784),
+           ("20", 3.864, 4.124), ("minutes.", 4.164, 4.405), ("How", 4.945, 5.045), ("do", 5.085, 5.125),
+           ("you", 5.165, 5.246), ("rob", 5.346, 5.526), ("a", 5.606, 5.626), ("vault?", 5.686, 5.946)]  # fmt: skip
+
+
+def test_placement_keeps_the_camera_from_leaving_the_last_word_of_the_group_before_out_of_frame():
+    words = [Word(*w) for w in OPENING]
+    plan = draft_plan("talk.wav", 7.0, group_phrases(words, line_chars(1080, 1920)), (1080, 1920))
+    assert not check(plan.make_scene(), plan.group_names())["clipped"]
+
+
+def test_a_tall_frame_gets_shorter_lines():
+    assert line_chars(1080, 1920) < line_chars(1080, 1080) < line_chars(1920, 1080) == MAX_CHARS == line_chars(3840, 2160)
+
+
+@pytest.mark.parametrize("size", ["1080", "1080x", "x1920", "10x1920", "1080x1920x2", "big"])
+def test_a_bad_size_is_refused_with_the_form_expected(size, capsys):
+    with pytest.raises(SystemExit):
+        main(["plan", "--audio", "talk.wav", "--out", "p.json", "--size", size])
+    assert "expected WIDTHxHEIGHT" in capsys.readouterr().err
 
 
 def test_every_json_example_in_the_guide_is_valid_and_its_plan_loads(tmp_path):

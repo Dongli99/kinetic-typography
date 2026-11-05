@@ -305,12 +305,14 @@ def plan_command(tmp_path, monkeypatch, capsys):
         words = [Word(token, index, index + 0.5) for index, token in enumerate(tokens)]
         return Alignment(words, len(tokens), -0.1, [])
 
-    def run(heard="", script=None):
+    def run(heard="", script=None, size=None):
         monkeypatch.setattr(cli, "_require_ffmpeg", lambda: None)
         monkeypatch.setattr(cli, "decode_audio", lambda path: "samples")
         monkeypatch.setattr(cli, "transcribe", lambda samples: fake_transcribe(samples, heard))
         monkeypatch.setattr(cli, "align_script", fake_align)
         arguments = ["plan", "--audio", str(audio), "--out", str(tmp_path / "out.plan.json"), "--json"]
+        if size:
+            arguments += ["--size", size]
         if script is not None:
             path = tmp_path / "script.txt"
             path.write_text(script)
@@ -326,6 +328,12 @@ def test_audio_alone_is_enough_and_misheard_words_are_reported(plan_command):
     assert code == 0
     assert result["words_from"] == "audio"
     assert result["doubtful"] == ["mishard"]
+
+
+def test_a_size_is_written_into_the_drafts_look(plan_command, tmp_path):
+    code, result, _ = plan_command(heard="Hello there.", size="1080x1920")
+    assert code == 0 and result["size"] == [1080, 1920]
+    assert load_plan(str(tmp_path / "out.plan.json")).look == {"width": 1080, "height": 1920}
 
 
 def test_a_draft_reports_that_its_emphasis_came_from_rules(plan_command):
